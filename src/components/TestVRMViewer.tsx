@@ -9,11 +9,20 @@ import { VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
 let globalVRMInstance: any = null;
 let globalInstanceCount = 0;
 
-export default function TestVRMViewer() {
+interface TestVRMViewerProps {
+  avatarData?: {
+    id: string;
+    name: string;
+    vrmPath: string;
+  };
+}
+
+export default function TestVRMViewer({ avatarData }: TestVRMViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const isInitializedRef = useRef(false);
   const vrmRef = useRef<any>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
+  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const instanceIdRef = useRef<number>(0);
 
   useEffect(() => {
@@ -40,6 +49,7 @@ export default function TestVRMViewer() {
     const height = containerRef.current.clientHeight;
     const camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000);
     camera.position.set(0, 1, 3);
+    cameraRef.current = camera;
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(width, height);
@@ -84,10 +94,12 @@ export default function TestVRMViewer() {
     const loader = new GLTFLoader();
     loader.register((parser) => new VRMLoaderPlugin(parser));
 
-    console.log('📦 VRM読み込み開始: /vrm-models/m_0_22.vrm');
+    // アバターデータからVRMパスを決定（デフォルトは男性アバター）
+    const vrmPath = avatarData?.vrmPath || '/vrm-models/m_0_22.vrm';
+    console.log('📦 VRM読み込み開始:', vrmPath, avatarData?.name || 'デフォルト');
     
     loader.load(
-      '/vrm-models/m_0_22.vrm',
+      vrmPath,
       (gltf) => {
         console.log('✅ GLTF読み込み成功:', gltf);
         
@@ -157,6 +169,56 @@ export default function TestVRMViewer() {
       renderer.dispose();
     };
   }, []);
+
+  // アバターデータが変更されたときに新しいVRMを読み込む
+  useEffect(() => {
+    if (!sceneRef.current || !avatarData) return;
+
+    const loadNewVRM = async () => {
+      console.log('🔄 アバター変更:', avatarData.name);
+      
+      // 既存のVRMを削除
+      if (vrmRef.current && sceneRef.current) {
+        sceneRef.current.remove(vrmRef.current.scene);
+        vrmRef.current = null;
+      }
+      
+      // グローバルインスタンスもクリア
+      globalVRMInstance = null;
+      
+      // 新しいVRMを読み込み
+      const loader = new GLTFLoader();
+      loader.register((parser) => new VRMLoaderPlugin(parser));
+      
+      try {
+        const gltf = await loader.loadAsync(avatarData.vrmPath);
+        const vrm = gltf.userData.vrm;
+        
+        if (vrm && sceneRef.current) {
+          globalVRMInstance = vrm;
+          vrmRef.current = vrm;
+          sceneRef.current.add(vrm.scene);
+          VRMUtils.rotateVRM0(vrm);
+          
+          // カメラ位置調整
+          const box = new THREE.Box3().setFromObject(vrm.scene);
+          const center = box.getCenter(new THREE.Vector3());
+          
+          // カメラの参照は初期化時に作成されたものを使用
+          if (cameraRef.current) {
+            cameraRef.current.position.set(0, center.y, 2);
+            cameraRef.current.lookAt(center);
+          }
+          
+          console.log('🎉 新しいVRM表示完了:', avatarData.name);
+        }
+      } catch (error) {
+        console.error('❌ VRM読み込みエラー:', error);
+      }
+    };
+    
+    loadNewVRM();
+  }, [avatarData]);
 
   return (
     <div className="w-full h-full">

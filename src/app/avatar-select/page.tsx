@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { AVATAR_LIST, AvatarData, getAvatarById } from '../../utils/avatarConfig';
+import ThumbnailManager from '../../components/ThumbnailManager';
 
 export default function AvatarSelectPage() {
   const router = useRouter();
@@ -13,22 +14,43 @@ export default function AvatarSelectPage() {
     currentAvatarId ? getAvatarById(currentAvatarId) || AVATAR_LIST[0] : AVATAR_LIST[0]
   );
   const [genderFilter, setGenderFilter] = useState<'all' | 'male' | 'female'>('all');
+  const [showThumbnailManager, setShowThumbnailManager] = useState(false);
 
   const filteredAvatars = genderFilter === 'all' 
     ? AVATAR_LIST 
     : AVATAR_LIST.filter(avatar => avatar.gender === genderFilter);
 
+  // デバッグログ
+  console.log('🎮 アバター選択画面 状態:', {
+    currentAvatarId,
+    selectedAvatar: selectedAvatar?.id,
+    genderFilter,
+    filteredAvatarsCount: filteredAvatars.length,
+    showThumbnailManager,
+    totalAvatars: AVATAR_LIST.length
+  });
+
+  // 初回のみAVATAR_LISTの内容を確認
+  if (AVATAR_LIST.length > 0) {
+    console.log('📋 利用可能なアバター:', AVATAR_LIST.map(a => ({ id: a.id, name: a.name, gender: a.gender })));
+  }
+
   const handleAvatarSelect = (avatar: AvatarData) => {
+    console.log('🎯 アバター選択:', avatar.name, '(ID:', avatar.id, ')');
     setSelectedAvatar(avatar);
   };
 
   const handleConfirm = () => {
     if (selectedAvatar) {
+      console.log('✅ アバター確定:', selectedAvatar.name, '→ メイン画面に遷移');
       router.push(`/?avatar=${selectedAvatar.id}`);
+    } else {
+      console.error('❌ アバターが選択されていません');
     }
   };
 
   const handleCancel = () => {
+    console.log('❌ アバター選択をキャンセル → メイン画面に戻る');
     router.push('/');
   };
 
@@ -38,16 +60,38 @@ export default function AvatarSelectPage() {
         <div className="bg-white rounded-lg shadow-lg p-6">
           <div className="flex justify-between items-center mb-6">
             <h1 className="text-3xl font-bold text-gray-800">アバター選択</h1>
-            <button
-              onClick={handleCancel}
-              className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
-            >
-              ✕ 閉じる
-            </button>
+            <div className="flex items-center space-x-4">
+              <button
+                onClick={() => setShowThumbnailManager(!showThumbnailManager)}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  showThumbnailManager 
+                    ? 'bg-purple-600 text-white' 
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                }`}
+              >
+                🛠️ サムネイル管理
+              </button>
+              <button
+                onClick={handleCancel}
+                className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
+              >
+                ✕ 閉じる
+              </button>
+            </div>
           </div>
 
-          {/* 性別フィルター */}
-          <div className="flex space-x-4 mb-6">
+          {/* サムネイル管理モード */}
+          {showThumbnailManager && (
+            <div className="mb-6">
+              <ThumbnailManager />
+            </div>
+          )}
+
+          {/* アバター選択UI - サムネイル管理モード以外で表示 */}
+          {!showThumbnailManager && (
+            <>
+              {/* 性別フィルター */}
+              <div className="flex space-x-4 mb-6">
             <button
               onClick={() => setGenderFilter('all')}
               className={`px-6 py-2 rounded-lg font-medium transition-colors ${
@@ -158,15 +202,17 @@ export default function AvatarSelectPage() {
             ))}
           </div>
 
-          {/* アクションボタン */}
-          <div className="flex justify-end">
-            <button
-              onClick={handleCancel}
-              className="px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors font-medium"
-            >
-              キャンセル
-            </button>
-          </div>
+              {/* アクションボタン */}
+              <div className="flex justify-end">
+                <button
+                  onClick={handleCancel}
+                  className="px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors font-medium"
+                >
+                  キャンセル
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>

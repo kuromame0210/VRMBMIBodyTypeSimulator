@@ -122,7 +122,7 @@ export default function Home() {
           <div className="flex flex-col gap-4">
             {/* 右上: アバター表示 */}
             <div className="bg-white rounded-lg shadow-lg p-4 flex-1">
-              <TestVRMViewer />
+              <TestVRMViewer avatarData={selectedAvatar} />
             </div>
             
             {/* 右下: アバター詳細・変更ボタン */}
