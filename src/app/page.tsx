@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { AVATAR_LIST, AvatarData, getAvatarById } from '../utils/avatarConfig';
@@ -21,7 +21,7 @@ const VRMViewer = dynamic(() => import('../components/VRMViewer'), {
   )
 });
 
-export default function Home() {
+function HomeContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const avatarId = searchParams.get('avatar');
@@ -70,6 +70,7 @@ export default function Home() {
   }) => {
     setUserData(newUserData);
   };
+
 
   useEffect(() => {
     const bmi = calculateBMI(userData.weight, userData.height);
@@ -171,5 +172,18 @@ export default function Home() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-gray-100 flex items-center justify-center">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4 mx-auto"></div>
+        <p>読み込み中...</p>
+      </div>
+    </div>}>
+      <HomeContent />
+    </Suspense>
   );
 }

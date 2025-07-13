@@ -1,11 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { AVATAR_LIST, AvatarData, getAvatarById } from '../../utils/avatarConfig';
 import ThumbnailManager from '../../components/ThumbnailManager';
 
-export default function AvatarSelectPage() {
+function AvatarSelectContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const currentAvatarId = searchParams.get('current');
@@ -216,5 +216,18 @@ export default function AvatarSelectPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function AvatarSelectPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-gray-100 flex items-center justify-center">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4 mx-auto"></div>
+        <p>読み込み中...</p>
+      </div>
+    </div>}>
+      <AvatarSelectContent />
+    </Suspense>
   );
 }

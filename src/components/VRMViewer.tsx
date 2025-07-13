@@ -6,9 +6,9 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 import { VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
 import { AvatarData } from '../utils/avatarConfig';
 import { VRMAnalyzer } from '../utils/vrmAnalyzer';
-import { VRMDebugAnalyzer } from '../utils/vrmDebugAnalyzer';
 import { useMemoryLeakPrevention } from '../utils/memoryLeakPrevention';
-import { DynamicMeshDeformer, DeformationOptions } from '../utils/dynamicMeshDeformation';
+import { DynamicMeshDeformer } from '../utils/dynamicMeshDeformation';
+import BlendShapeController from './BlendShapeController';
 
 interface VRMViewerProps {
   currentBMI: number;
@@ -25,11 +25,12 @@ interface VRMViewerProps {
 
 export default function VRMViewer({ currentBMI, futureBMI, avatarData }: VRMViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const modalContainerRef = useRef<HTMLDivElement>(null);
   const initRef = useRef(false);
   const sceneRef = useRef<THREE.Scene | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
-  const vrmRef = useRef<any>(null);
+  const vrmRef = useRef<unknown>(null);
   const testCubeRef = useRef<THREE.Mesh | null>(null);
   const isCleanedUpRef = useRef(false);
   const meshDeformerRef = useRef<DynamicMeshDeformer | null>(null);
@@ -105,6 +106,7 @@ export default function VRMViewer({ currentBMI, futureBMI, avatarData }: VRMView
           VRMUtils.rotateVRM0(vrm);
         }
         
+        
         // 動的メッシュ変形の初期化
         if (!meshDeformerRef.current) {
           meshDeformerRef.current = new DynamicMeshDeformer();
@@ -133,14 +135,14 @@ export default function VRMViewer({ currentBMI, futureBMI, avatarData }: VRMView
         // カメラ位置調整
         adjustCameraPosition(sceneToAdd);
         
-        // 初期BMI値で体型更新
-        if (currentBMI > 0 && !isCleanedUpRef.current) {
-          setTimeout(() => {
-            if (!isCleanedUpRef.current) {
-              updateBodyShape(currentBMI);
-            }
-          }, 100);
-        }
+        // 初期BMI値で体型更新（動的変形無効化のため一時的に無効）
+        // if (currentBMI > 0 && !isCleanedUpRef.current) {
+        //   setTimeout(() => {
+        //     if (!isCleanedUpRef.current) {
+        //       updateBodyShape(currentBMI);
+        //     }
+        //   }, 100);
+        // }
       }
     } catch (error) {
       console.error('❌ VRM読み込み失敗:', error);
@@ -279,17 +281,17 @@ export default function VRMViewer({ currentBMI, futureBMI, avatarData }: VRMView
     });
   };
 
-  // BMIに基づいて体型を更新する関数
+  // BMIに基づいて体型を更新する関数（動的メッシュ変形は無効化）
   const updateBodyShape = (bmiValue: number) => {
     if (!vrmRef.current || isCleanedUpRef.current) return;
     
-    console.log('🔍 updateBodyShape実行開始 - BMI:', bmiValue);
+    console.log('🔍 updateBodyShape実行開始 - BMI:', bmiValue, '（動的メッシュ変形は無効化）');
     
-    // まず動的メッシュ変形を試行
-    if (meshDeformerRef.current) {
-      applyDynamicMeshDeformation(bmiValue);
-      return;
-    }
+    // 動的メッシュ変形を無効化してブレンドシェイプのみに集中
+    // if (meshDeformerRef.current) {
+    //   applyDynamicMeshDeformation(bmiValue);
+    //   return;
+    // }
     
     vrmRef.current.scene.traverse((object: any) => {
       if (object.isSkinnedMesh && object.morphTargetDictionary) {
@@ -689,28 +691,29 @@ export default function VRMViewer({ currentBMI, futureBMI, avatarData }: VRMView
     }
   }, [avatarData]);
 
-  // BMIが変更されたら体型を更新
-  useEffect(() => {
-    if (currentBMI > 0 && !useManualAdjustment && !isCleanedUpRef.current) {
-      updateBodyShape(currentBMI);
-    }
-  }, [currentBMI, useManualAdjustment]);
+  // BMIが変更されたら体型を更新（動的変形無効化のため一時的に無効）
+  // useEffect(() => {
+  //   if (currentBMI > 0 && !useManualAdjustment && !isCleanedUpRef.current) {
+  //     updateBodyShape(currentBMI);
+  //   }
+  // }, [currentBMI, useManualAdjustment]);
 
-  // 未来のBMI予測のアニメーション（メモリリーク対策済み）
-  useEffect(() => {
-    if (futureBMI.length === 0 || useManualAdjustment || isCleanedUpRef.current) return;
+  // 未来のBMI予測のアニメーション（動的変形無効化のため一時的に無効）
+  // useEffect(() => {
+  //   if (futureBMI.length === 0 || useManualAdjustment || isCleanedUpRef.current) return;
 
-    const clearIntervalCallback = memoryPrevention.safeSetInterval(() => {
-      setCurrentPredictionIndex((prevIndex) => {
-        const nextIndex = (prevIndex + 1) % futureBMI.length;
-        const nextBMI = futureBMI[nextIndex].bmi;
-        updateBodyShape(nextBMI);
-        return nextIndex;
-      });
-    }, 3000);
+  //   const clearIntervalCallback = memoryPrevention.safeSetInterval(() => {
+  //     setCurrentPredictionIndex((prevIndex) => {
+  //       const nextIndex = (prevIndex + 1) % futureBMI.length;
+  //       const nextBMI = futureBMI[nextIndex].bmi;
+  //       updateBodyShape(nextBMI);
+  //       return nextIndex;
+  //     });
+  //   }, 3000);
 
-    return clearIntervalCallback;
-  }, [futureBMI, useManualAdjustment, memoryPrevention]);
+  //   return clearIntervalCallback;
+  // }, [futureBMI, useManualAdjustment, memoryPrevention]);
+
 
   return (
     <div className="w-full space-y-4">
@@ -738,10 +741,10 @@ export default function VRMViewer({ currentBMI, futureBMI, avatarData }: VRMView
         </div>
       </div>
       
-      {/* お腹周りの手動調整コントロール */}
+      {/* ブレンドシェイプ制御 */}
       <div className="bg-gray-50 rounded-lg p-4 space-y-3">
         <div className="flex items-center justify-between">
-          <h4 className="font-medium text-gray-700">お腹周りの調整（メモリリーク対策済み）</h4>
+          <h4 className="font-medium text-gray-700">ブレンドシェイプ制御</h4>
           <div className="flex items-center space-x-4">
             <label className="flex items-center space-x-2">
               <input
@@ -750,8 +753,17 @@ export default function VRMViewer({ currentBMI, futureBMI, avatarData }: VRMView
                 onChange={(e) => setShowDebugInfo(e.target.checked)}
                 className="rounded"
               />
-              <span className="text-sm text-gray-600">デバッグ情報</span>
+              <span className="text-sm text-gray-600">ブレンドシェイプ制御パネル</span>
             </label>
+          </div>
+        </div>
+      </div>
+
+      {/* お腹周りの手動調整コントロール（機能していないため非表示） */}
+      {/* <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <h4 className="font-medium text-gray-700">お腹周りの調整（メモリリーク対策済み）</h4>
+          <div className="flex items-center space-x-4">
             <label className="flex items-center space-x-2">
               <input
                 type="checkbox"
@@ -764,7 +776,6 @@ export default function VRMViewer({ currentBMI, futureBMI, avatarData }: VRMView
           </div>
         </div>
         
-        {/* デバッグ用スライダー（常に表示） */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-sm text-gray-600">
@@ -803,7 +814,6 @@ export default function VRMViewer({ currentBMI, futureBMI, avatarData }: VRMView
             </button>
           </div>
           
-          {/* リアルタイム値表示 */}
           <div className="grid grid-cols-3 gap-2 text-xs">
             <div className="bg-blue-50 p-2 rounded text-center">
               <div className="font-semibold text-blue-600">BMI</div>
@@ -818,9 +828,11 @@ export default function VRMViewer({ currentBMI, futureBMI, avatarData }: VRMView
               <div>{manualBellyValue > 0 ? (manualBellyValue * 100).toFixed(0) + '%' : 'BMI連動'}</div>
             </div>
           </div>
+        </div>
+      </div> */}
           
-          {/* プリセットボタン */}
-          <div className="space-y-1">
+          {/* プリセットボタン（動的変形無効化のため非表示） */}
+          {/* <div className="space-y-1">
             <div className="text-xs text-gray-600 font-medium">クイック設定:</div>
             <div className="grid grid-cols-5 gap-1">
               {[
@@ -846,8 +858,7 @@ export default function VRMViewer({ currentBMI, futureBMI, avatarData }: VRMView
                 </button>
               ))}
             </div>
-          </div>
-        </div>
+          </div> */}
         
         {/* ローディング状態 */}
         {isLoading && (
@@ -891,13 +902,13 @@ export default function VRMViewer({ currentBMI, futureBMI, avatarData }: VRMView
               <p><strong>設定されたブレンドシェイプ:</strong></p>
               <ul className="list-disc pl-5 space-y-1">
                 {avatarData.blendShapeNames.belly && (
-                  <li>belly: "{avatarData.blendShapeNames.belly}"</li>
+                  <li>belly: &quot;{avatarData.blendShapeNames.belly}&quot;</li>
                 )}
                 {avatarData.blendShapeNames.weight && (
-                  <li>weight: "{avatarData.blendShapeNames.weight}"</li>
+                  <li>weight: &quot;{avatarData.blendShapeNames.weight}&quot;</li>
                 )}
                 {avatarData.blendShapeNames.fat && (
-                  <li>fat: "{avatarData.blendShapeNames.fat}"</li>
+                  <li>fat: &quot;{avatarData.blendShapeNames.fat}&quot;</li>
                 )}
               </ul>
               
@@ -980,7 +991,6 @@ export default function VRMViewer({ currentBMI, futureBMI, avatarData }: VRMView
             </div>
           </div>
         )}
-      </div>
       
       {/* 3Dビューアー */}
       <div className="relative">
@@ -1007,6 +1017,54 @@ export default function VRMViewer({ currentBMI, futureBMI, avatarData }: VRMView
             )}
           </div>
         )}
+        
+      {/* ブレンドシェイプコントロールパネル */}
+      {showDebugInfo && vrmRef.current && (
+        <>
+          {/* 左側のコントロールパネル */}
+          <div className="fixed left-0 top-0 h-full w-96 bg-white shadow-2xl flex flex-col z-40">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50">
+              <h2 className="text-lg font-bold text-gray-800">🎭 ブレンドシェイプ制御</h2>
+              <button
+                onClick={() => setShowDebugInfo(false)}
+                className="px-3 py-1 bg-gray-500 text-white text-sm rounded hover:bg-gray-600 transition-colors"
+              >
+                ✕ 閉じる
+              </button>
+            </div>
+            <div className="flex-1 overflow-hidden">
+              <BlendShapeController 
+                vrm={vrmRef.current}
+                onBlendShapeChange={(name, value) => {
+                  console.log(`🎭 ブレンドシェイプ変更: ${name} = ${value}`);
+                  setCurrentBlendShape(`${name}: ${(value * 100).toFixed(0)}%`);
+                }}
+              />
+            </div>
+            <div className="p-3 border-t border-gray-200 bg-gray-50 text-xs text-gray-600">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                <span>右側のVRMビューアーでリアルタイム確認</span>
+              </div>
+              {currentBlendShape && (
+                <div className="bg-blue-50 p-2 rounded border border-blue-200">
+                  <div className="text-xs font-medium text-blue-700">現在の設定:</div>
+                  <div className="text-sm font-bold text-blue-800">{currentBlendShape}</div>
+                </div>
+              )}
+            </div>
+          </div>
+          
+          {/* 右上のメッセージエリア */}
+          <div className="fixed right-4 top-4 bg-black bg-opacity-70 text-white px-4 py-3 rounded-lg shadow-lg z-30">
+            <div className="text-lg font-bold mb-1">🎭 ブレンドシェイプ制御モード</div>
+            <div className="text-sm text-gray-300">
+              左側のパネルでスライダーを調整してください
+            </div>
+          </div>
+
+        </>
+      )}
       </div>
     </div>
   );
