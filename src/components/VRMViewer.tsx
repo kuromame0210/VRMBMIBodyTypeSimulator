@@ -1,16 +1,14 @@
 'use client';
 
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 import { VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
 import { AvatarData } from '../utils/avatarConfig';
-import { TextureOptimizer } from '../utils/textureOptimizer';
 import { VRMAnalyzer } from '../utils/vrmAnalyzer';
-import { MemoryMonitor } from '../utils/memoryMonitor';
-import { VRMCache } from '../utils/vrmCache';
-import MemoryDebugPanel from './MemoryDebugPanel';
-import VRMLoadingIndicator from './VRMLoadingIndicator';
+import { VRMDebugAnalyzer } from '../utils/vrmDebugAnalyzer';
+import { useMemoryLeakPrevention } from '../utils/memoryLeakPrevention';
+import { DynamicMeshDeformer, DeformationOptions } from '../utils/dynamicMeshDeformation';
 
 interface VRMViewerProps {
   currentBMI: number;
@@ -25,656 +23,684 @@ interface VRMViewerProps {
   };
 }
 
-export default function VRMViewer({ currentBMI, futureBMI, avatarData, userData }: VRMViewerProps) {
-  console.log('VRMViewer初期化:', avatarData?.id, avatarData?.name);
-  console.log('Three.js利用可能:', !!THREE, !!THREE.Scene);
-  console.log('VRMViewer props:', { currentBMI, futureBMI: futureBMI.length, avatarData: avatarData?.id, userData: userData?.gender });
-  
-  // コンポーネントのマウント/アンマウントをトラッキング
-  useEffect(() => {
-    console.log('VRMViewer component mounted');
-    return () => {
-      console.log('VRMViewer component unmounted');
-    };
-  }, []);
-  
+export default function VRMViewer({ currentBMI, futureBMI, avatarData }: VRMViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const initRef = useRef(false);
   const sceneRef = useRef<THREE.Scene | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const vrmRef = useRef<any>(null);
-  const animationIdRef = useRef<number | null>(null);
-  const isInitializedRef = useRef(false);
-  const lastUpdateTimeRef = useRef<number>(0);
-  const loadingControllerRef = useRef<AbortController | null>(null);
-  const currentLoadingPathRef = useRef<string | null>(null);
   const testCubeRef = useRef<THREE.Mesh | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [loadingProgress, setLoadingProgress] = useState(0);
-  const [loadingStep, setLoadingStep] = useState('');
+  const isCleanedUpRef = useRef(false);
+  const meshDeformerRef = useRef<DynamicMeshDeformer | null>(null);
+  
+  // メモリリーク防止フック
+  const memoryPrevention = useMemoryLeakPrevention();
+  
+  // 状態管理
   const [currentPredictionIndex, setCurrentPredictionIndex] = useState(0);
-  const [isThreeJSReady, setIsThreeJSReady] = useState(false);
-  const [isVisible, setIsVisible] = useState(true);
+  const [manualBellyValue, setManualBellyValue] = useState(0);
+  const [useManualAdjustment, setUseManualAdjustment] = useState(false);
+  const [showDebugInfo, setShowDebugInfo] = useState(false);
+  const [availableBlendShapes, setAvailableBlendShapes] = useState<string[]>([]);
+  const [currentBlendShape, setCurrentBlendShape] = useState<string>('');
+  const [detailedAnalysis, setDetailedAnalysis] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [loadingError, setLoadingError] = useState<string>('');
 
-  const loadVRM = useCallback(async (avatarData: AvatarData) => {
-    console.log('loadVRM関数開始:', {
-      scene: !!sceneRef.current,
-      renderer: !!rendererRef.current, 
-      camera: !!cameraRef.current,
-      avatarPath: avatarData.vrmPath
-    });
-    
-    // 既に読み込み中なら中断
-    if (isLoading) {
-      console.log('既に読み込み中のため、スキップします');
-      return;
-    }
-    
-    // 同じVRMを読み込み中なら中断
-    if (currentLoadingPathRef.current === avatarData.vrmPath) {
-      console.log('同じVRMを読み込み中のため、スキップします:', avatarData.vrmPath);
-      return;
-    }
-    
-    // メモリ監視開始
-    MemoryMonitor.logMemoryInfo('VRM読み込み開始');
-    
-    // VRM読み込み前のメモリチェック
-    if (!MemoryMonitor.canLoadVRM()) {
-      console.warn('⚠️ メモリ不足のためVRM読み込みを中止');
-      MemoryMonitor.emergencyMemoryCleanup();
-      VRMCache.emergencyCleanup();
-      setError('メモリ不足のため読み込みできません。ブラウザを再起動してください。');
-      return;
-    }
-    
-    // キャッシュからチェック
-    const cachedVRM = VRMCache.get(avatarData.vrmPath);
-    if (cachedVRM) {
-      console.log('📦 キャッシュからVRMを読み込み');
-      vrmRef.current = cachedVRM;
-      sceneRef.current.add(cachedVRM.scene);
-      setIsLoading(false);
-      return;
-    }
-    
-    if (!sceneRef.current || !rendererRef.current || !cameraRef.current) {
-      console.error('Three.jsオブジェクトが初期化されていません');
+  // VRMを読み込む関数（シンプル版）
+  const loadVRM = async (vrmPath: string) => {
+    // 基本チェック
+    if (!sceneRef.current || !cameraRef.current || isCleanedUpRef.current || !initRef.current) {
+      console.log('❌ VRM読み込み中止: 条件不満足');
       return;
     }
 
-    // 既存のロードプロセスをキャンセル
-    if (loadingControllerRef.current) {
-      loadingControllerRef.current.abort();
-    }
-    loadingControllerRef.current = new AbortController();
-
-    // 既存VRMの完全なメモリ解放
-    if (vrmRef.current) {
-      console.log('既存VRMを削除中...');
-      sceneRef.current.remove(vrmRef.current.scene);
-      
-      // テクスチャとジオメトリの明示的な解放
-      vrmRef.current.scene.traverse((object: any) => {
-        if (object.geometry) {
-          object.geometry.dispose();
-        }
-        if (object.material) {
-          if (Array.isArray(object.material)) {
-            object.material.forEach((material: any) => {
-              if (material.map) material.map.dispose();
-              if (material.normalMap) material.normalMap.dispose();
-              if (material.emissiveMap) material.emissiveMap.dispose();
-              material.dispose();
-            });
-          } else {
-            if (object.material.map) object.material.map.dispose();
-            if (object.material.normalMap) object.material.normalMap.dispose();
-            if (object.material.emissiveMap) object.material.emissiveMap.dispose();
-            object.material.dispose();
-          }
-        }
-      });
-      
-      // VRMのdisposeメソッドがある場合のみ呼び出し
-      if (typeof vrmRef.current.dispose === 'function') {
-        vrmRef.current.dispose();
-      }
-      
-      // VRMに関連するすべての参照をクリア
-      if (vrmRef.current.expressionManager) {
-        vrmRef.current.expressionManager = null;
-      }
-      if (vrmRef.current.lookAt) {
-        vrmRef.current.lookAt = null;
-      }
-      if (vrmRef.current.humanoid) {
-        vrmRef.current.humanoid = null;
-      }
-      vrmRef.current = null;
-      
-      // 強制ガベージコレクションとメモリ解放
-      if (window.gc) {
-        window.gc();
-      }
-      
-      // メモリプレッシャーを適用してガベージコレクションを促進
-      try {
-        // 大きな配列を作成してメモリプレッシャーをかける
-        const tempArray = new Array(1000000);
-        tempArray.fill(0);
-        // すぐに解放
-        tempArray.length = 0;
-      } catch {
-        // メモリ不足時は無視
-      }
-    }
-
-    // 読み込み中のパスを設定
-    currentLoadingPathRef.current = avatarData.vrmPath;
-    
     setIsLoading(true);
-    setError(null);
-    setLoadingProgress(0);
-    setLoadingStep('VRMファイルを読み込み中...');
+    setLoadingError('');
+    console.log('📦 VRM読み込み開始:', vrmPath);
 
     try {
-      MemoryMonitor.logMemoryInfo('VRM読み込み開始');
-      console.log('VRM読み込み開始:', avatarData.vrmPath);
-      
       const loader = new GLTFLoader();
       loader.register((parser) => new VRMLoaderPlugin(parser));
 
-      // タイムアウト設定 (30秒)
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('VRM読み込みタイムアウト (30秒)')), 30000);
-      });
-
-      setLoadingProgress(20);
-      setLoadingStep('GLTFファイルを解析中...');
+      const gltf = await loader.loadAsync(vrmPath);
       
-      const gltf = await Promise.race([
-        loader.loadAsync(avatarData.vrmPath),
-        timeoutPromise
-      ]) as any;
-      
-      setLoadingProgress(40);
-      setLoadingStep('VRMデータを処理中...');
-      
-      console.log('GLTF読み込み完了:', gltf);
-      const vrm = gltf.userData.vrm;
-      console.log('VRM取得:', vrm);
-      
-      // アボートされた場合は処理を中断
-      if (loadingControllerRef.current?.signal.aborted) {
-        console.log('VRM読み込みがキャンセルされました');
+      // 読み込み後のクリーンアップチェック
+      if (isCleanedUpRef.current || !initRef.current) {
+        console.log('❌ VRM読み込み中断: コンポーネント状態変更');
+        setIsLoading(false);
         return;
       }
 
-      vrmRef.current = vrm;
-      sceneRef.current.add(vrm.scene);
-      VRMUtils.rotateVRM0(vrm);
+      console.log('✅ VRM読み込み成功:', gltf);
+      const vrm = gltf.userData.vrm;
       
-      // テスト用キューブを削除
-      if (testCubeRef.current) {
-        sceneRef.current.remove(testCubeRef.current);
-        testCubeRef.current = null;
-        console.log('🟢 テスト用キューブを削除しました');
+      let sceneToAdd = null;
+      if (vrm && sceneRef.current) {
+        sceneToAdd = vrm.scene;
+      } else if (gltf.scene && sceneRef.current) {
+        sceneToAdd = gltf.scene;
+      } else {
+        throw new Error('VRMもGLTFシーンも利用できません');
       }
       
-      // VRMをキャッシュに保存（メモリ使用量を確認してから）
-      const currentMemory = MemoryMonitor.getCurrentMemoryUsage();
-      if (currentMemory && currentMemory.status !== 'critical') {
-        // キャッシュ用にVRMのコピーを作成（簡易版）
-        VRMCache.set(avatarData.vrmPath, vrm);
+      if (sceneToAdd && sceneRef.current) {
+        // 既存のVRMを削除
+        if (vrmRef.current && sceneRef.current) {
+          sceneRef.current.remove(vrmRef.current.scene);
+        }
+        
+        // テストキューブを削除
+        if (testCubeRef.current && sceneRef.current) {
+          sceneRef.current.remove(testCubeRef.current);
+          testCubeRef.current = null;
+        }
+        
+        vrmRef.current = vrm;
+        sceneRef.current.add(sceneToAdd);
+        
+        // VRMの場合のみVRMUtilsを適用
+        if (vrm) {
+          VRMUtils.rotateVRM0(vrm);
+        }
+        
+        // 動的メッシュ変形の初期化
+        if (!meshDeformerRef.current) {
+          meshDeformerRef.current = new DynamicMeshDeformer();
+        }
+        
+        // 体メッシュの元データを保存
+        let bodyMeshCount = 0;
+        sceneToAdd.traverse((object: any) => {
+          if (object.isSkinnedMesh && object.name) {
+            const objName = object.name.toLowerCase();
+            const isBodyMesh = objName.includes('body') || 
+                              objName.includes('merged') ||
+                              (!objName.includes('face') && !objName.includes('head') && !objName.includes('hair'));
+            
+            if (isBodyMesh) {
+              meshDeformerRef.current!.saveOriginalVertices(object);
+              bodyMeshCount++;
+            }
+          }
+        });
+        console.log(`🎯 体メッシュ保存完了: ${bodyMeshCount}個`);
+        
+        // ブレンドシェイプ分析を実行
+        await analyzeBlendShapes(sceneToAdd, vrm);
+        
+        // カメラ位置調整
+        adjustCameraPosition(sceneToAdd);
+        
+        // 初期BMI値で体型更新
+        if (currentBMI > 0 && !isCleanedUpRef.current) {
+          setTimeout(() => {
+            if (!isCleanedUpRef.current) {
+              updateBodyShape(currentBMI);
+            }
+          }, 100);
+        }
       }
+    } catch (error) {
+      console.error('❌ VRM読み込み失敗:', error);
+      if (!isCleanedUpRef.current) {
+        setLoadingError(`VRM読み込みエラー: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
+    } finally {
+      if (!isCleanedUpRef.current) {
+        setIsLoading(false);
+      }
+    }
+  };
+
+  // ブレンドシェイプ分析関数
+  const analyzeBlendShapes = async (sceneToAdd: THREE.Object3D, vrm: any) => {
+    const allBlendShapes = new Map<string, number>();
+    let totalBlendShapes = 0;
+    let bodyBlendShapes = 0;
+    
+    sceneToAdd.traverse((object: any) => {
+      if (object.isSkinnedMesh && object.morphTargetDictionary) {
+        const blendShapeNames = Object.keys(object.morphTargetDictionary);
+        totalBlendShapes += blendShapeNames.length;
+        
+        blendShapeNames.forEach(name => {
+          const index = object.morphTargetDictionary[name];
+          const currentValue = object.morphTargetInfluences ? object.morphTargetInfluences[index] : 0;
+          allBlendShapes.set(name, currentValue);
+          
+          const lowerName = name.toLowerCase();
+          const isBodyRelated = lowerName.includes('belly') || lowerName.includes('fat') || 
+                              lowerName.includes('weight') || lowerName.includes('body') ||
+                              lowerName.includes('chest') || lowerName.includes('waist') ||
+                              lowerName.includes('hip') || lowerName.includes('muscle');
+          
+          if (isBodyRelated) {
+            bodyBlendShapes++;
+          }
+        });
+      }
+    });
+    
+    console.log(`📊 ブレンドシェイプ: 全${totalBlendShapes}個 (体型関連: ${bodyBlendShapes}個)`);
+    
+    // VRMAnalyzerを使用した詳細分析
+    try {
+      const analysisResult = VRMAnalyzer.analyzeVRMBlendShapes(vrm);
+      console.log('📈 VRMAnalyzer分析結果:', analysisResult);
       
-      setLoadingProgress(60);
-      setLoadingStep('テクスチャを最適化中...');
+      // UIに表示するための情報を保存
+      setAvailableBlendShapes(Array.from(allBlendShapes.keys()));
       
-      // テクスチャ最適化
-      const memoryGB = (navigator as any).deviceMemory || 4;
-      TextureOptimizer.optimizeVRMTextures(vrm, memoryGB);
-      
-      console.log('テクスチャ最適化完了:', {
-        deviceMemory: `${memoryGB}GB`,
-        optimizationLevel: memoryGB <= 4 ? 'ultra' : memoryGB <= 8 ? 'high' : 'medium'
+      // 簡略化された詳細分析結果を作成
+      const bodyBlendShapes = Array.from(allBlendShapes.keys()).filter(name => {
+        const lowerName = name.toLowerCase();
+        return lowerName.includes('belly') || lowerName.includes('weight') || 
+               lowerName.includes('fat') || lowerName.includes('body') ||
+               lowerName.includes('chest') || lowerName.includes('waist') ||
+               lowerName.includes('hip') || lowerName.includes('muscle');
       });
       
-      setLoadingProgress(80);
-      setLoadingStep('ブレンドシェイプを分析中...');
+      const detailedAnalysisResult = {
+        totalBlendShapes: allBlendShapes.size,
+        bodyBlendShapes: bodyBlendShapes.map(name => ({ name, meshName: 'mesh' })),
+        faceBlendShapes: [],
+        emotionBlendShapes: [],
+        unknownBlendShapes: [],
+        meshes: [{ name: 'VRM Mesh', blendShapeCount: allBlendShapes.size }],
+        totalMemoryUsage: allBlendShapes.size * 1024
+      };
       
-      // ブレンドシェイプ分析
-      const analysisResult = VRMAnalyzer.analyzeVRMBlendShapes(vrm);
-      console.log('VRMブレンドシェイプ分析:', analysisResult);
+      setDetailedAnalysis(detailedAnalysisResult);
       
-      // BMIシミュレーションに必要なブレンドシェイプを特定
-      const requiredBlendShapes = VRMAnalyzer.identifyRequiredBlendShapes(vrm);
-      console.log('BMIシミュレーションに必要なブレンドシェイプ:', requiredBlendShapes);
+      // 使用するブレンドシェイプを決定
+      let usedBlendShape = '';
+      const configuredShapes = [
+        avatarData.blendShapeNames.belly,
+        avatarData.blendShapeNames.weight,
+        avatarData.blendShapeNames.fat
+      ].filter(Boolean);
       
-      // 不要なブレンドシェイプを特定して無効化
-      const allBlendShapes = Object.keys(analysisResult.blendShapesByCategory).flatMap(category => 
-        analysisResult.blendShapesByCategory[category].map(bs => bs.name)
-      );
-      const unnecessaryBlendShapes = allBlendShapes.filter(name => !requiredBlendShapes.includes(name));
-      
-      if (unnecessaryBlendShapes.length > 0) {
-        console.log(`不要なブレンドシェイプ${unnecessaryBlendShapes.length}個を無効化:`, unnecessaryBlendShapes);
-        VRMAnalyzer.disableBlendShapes(vrm, unnecessaryBlendShapes);
+      for (const shapeName of configuredShapes) {
+        if (allBlendShapes.has(shapeName!)) {
+          usedBlendShape = shapeName!;
+          break;
+        }
       }
-
-      // デバイスメモリに基づいたVRM最適化（既に上で定義済み）
       
-      vrm.scene.traverse((child: any) => {
-        if (child.isMesh) {
-          // フラスタムカリングを有効にする
-          child.frustumCulled = true;
+      // 設定されたものが見つからない場合の自動検出
+      if (!usedBlendShape && bodyBlendShapes.length > 0) {
+        usedBlendShape = bodyBlendShapes[0];
+        console.log('🔄 自動検出されたブレンドシェイプ:', usedBlendShape);
+      }
+      
+      setCurrentBlendShape(usedBlendShape);
+      console.log('🎯 最終的に使用するブレンドシェイプ:', usedBlendShape || 'なし');
+      
+    } catch (error) {
+      console.error('❌ VRMAnalyzer分析エラー:', error);
+    }
+  };
+
+  // カメラ位置調整
+  const adjustCameraPosition = (sceneToAdd: THREE.Object3D) => {
+    const box = new THREE.Box3().setFromObject(sceneToAdd);
+    const center = box.getCenter(new THREE.Vector3());
+    const size = box.getSize(new THREE.Vector3());
+    const maxDim = Math.max(size.x, size.y, size.z);
+    
+    console.log('📐 VRMバウンディングボックス - center:', center, 'size:', size, 'maxDim:', maxDim);
+    
+    let cameraX, cameraY, cameraZ;
+    if (maxDim < 0.5) {
+      cameraX = 0;
+      cameraY = center.y;
+      cameraZ = 1.5;
+    } else if (maxDim < 2.0) {
+      cameraX = center.x;
+      cameraY = center.y;
+      cameraZ = maxDim * 1.5;
+    } else {
+      const fov = cameraRef.current!.fov * (Math.PI / 180);
+      cameraZ = Math.abs(maxDim / 2 / Math.tan(fov / 2)) * 1.2;
+      cameraX = center.x;
+      cameraY = center.y + size.y / 4;
+    }
+    
+    cameraRef.current!.position.set(cameraX, cameraY, cameraZ);
+    cameraRef.current!.lookAt(center);
+    
+    // フラスタムカリングを無効化
+    sceneToAdd.traverse((child: any) => {
+      if (child.isMesh) {
+        child.frustumCulled = false;
+      }
+    });
+  };
+
+  // BMIに基づいて体型を更新する関数
+  const updateBodyShape = (bmiValue: number) => {
+    if (!vrmRef.current || isCleanedUpRef.current) return;
+    
+    console.log('🔍 updateBodyShape実行開始 - BMI:', bmiValue);
+    
+    // まず動的メッシュ変形を試行
+    if (meshDeformerRef.current) {
+      applyDynamicMeshDeformation(bmiValue);
+      return;
+    }
+    
+    vrmRef.current.scene.traverse((object: any) => {
+      if (object.isSkinnedMesh && object.morphTargetDictionary) {
+        const blendShapeNames = avatarData.blendShapeNames;
+        let bellyIndex = undefined;
+        let usedBlendShapeName = '';
+
+        // 設定されたブレンドシェイプを探す
+        if (blendShapeNames.belly && object.morphTargetDictionary[blendShapeNames.belly] !== undefined) {
+          bellyIndex = object.morphTargetDictionary[blendShapeNames.belly];
+          usedBlendShapeName = blendShapeNames.belly;
+        } else if (blendShapeNames.weight && object.morphTargetDictionary[blendShapeNames.weight] !== undefined) {
+          bellyIndex = object.morphTargetDictionary[blendShapeNames.weight];
+          usedBlendShapeName = blendShapeNames.weight;
+        } else if (blendShapeNames.fat && object.morphTargetDictionary[blendShapeNames.fat] !== undefined) {
+          bellyIndex = object.morphTargetDictionary[blendShapeNames.fat];
+          usedBlendShapeName = blendShapeNames.fat;
+        } else {
+          // 自動検出
+          const availableBlendShapes = Object.keys(object.morphTargetDictionary);
+          const potentialBodyBlendShapes = availableBlendShapes.filter(name => {
+            const lowerName = name.toLowerCase();
+            return lowerName.includes('belly') || lowerName.includes('fat') || 
+                   lowerName.includes('weight') || lowerName.includes('body') ||
+                   lowerName.includes('chest') || lowerName.includes('waist') ||
+                   lowerName.includes('hip') || lowerName.includes('muscle');
+          });
           
-          // マテリアルの最適化
-          if (child.material) {
-            const materials = Array.isArray(child.material) ? child.material : [child.material];
-            materials.forEach((mat: any) => {
-              // メモリに基づいた最適化
-              mat.precision = memoryGB <= 4 ? 'lowp' : memoryGB <= 8 ? 'mediump' : 'highp';
-              
-              // テクスチャの最適化
-              if (mat.map && memoryGB <= 4) {
-                mat.map.generateMipmaps = false;
-                mat.map.minFilter = THREE.LinearFilter;
-                mat.map.magFilter = THREE.LinearFilter;
-              }
-              
-              // 低スペック用設定
-              if (memoryGB <= 4) {
-                mat.transparent = false;
-                mat.alphaTest = 0;
-                mat.side = THREE.FrontSide;
-              }
-              
-              mat.needsUpdate = true;
-            });
+          if (potentialBodyBlendShapes.length > 0) {
+            bellyIndex = object.morphTargetDictionary[potentialBodyBlendShapes[0]];
+            usedBlendShapeName = potentialBodyBlendShapes[0];
+          }
+        }
+        
+        if (bellyIndex !== undefined) {
+          let blendValue = 0;
+          
+          // 手動調整値がある場合は常に優先
+          if (manualBellyValue > 0) {
+            blendValue = manualBellyValue;
+            console.log('🎛️ 手動調整値を使用:', blendValue);
+          } else if (useManualAdjustment) {
+            blendValue = manualBellyValue;
+            console.log('🔧 手動調整モード:', blendValue);
+          } else {
+            // BMI自動計算
+            if (bmiValue <= 25) {
+              blendValue = 0;
+            } else if (bmiValue > 25 && bmiValue <= 30) {
+              blendValue = ((bmiValue - 25) / 5) * 0.5;
+            } else if (bmiValue > 30) {
+              blendValue = Math.min(0.5 + ((bmiValue - 30) / 10) * 0.5, 1.0);
+            }
+            console.log('🧮 BMI自動計算:', bmiValue, '->', blendValue);
           }
           
-          // ジオメトリの最適化
-          if (child.geometry && memoryGB <= 4) {
-            child.geometry.computeBoundingSphere();
-            child.geometry.computeBoundingBox();
+          const previousValue = object.morphTargetInfluences[bellyIndex];
+          object.morphTargetInfluences[bellyIndex] = blendValue;
+          
+          console.log('📈 ブレンドシェイプ値を更新:', usedBlendShapeName, '前の値:', previousValue, '新しい値:', blendValue);
+          setCurrentBlendShape(usedBlendShapeName);
+        }
+      }
+    });
+  };
+
+  // 手動でお腹周りを調整する関数
+  const handleManualBellyChange = (value: number) => {
+    setManualBellyValue(value);
+    
+    if (vrmRef.current) {
+      forceUpdateBlendShape(value);
+    }
+  };
+  
+  // 強制的にブレンドシェイプを更新する関数（デバッグ用）
+  const forceUpdateBlendShape = (value: number) => {
+    if (!vrmRef.current) return;
+    
+    let updated = false;
+    
+    vrmRef.current.scene.traverse((object: any) => {
+      if (object.isSkinnedMesh && object.morphTargetDictionary) {
+        const dictionary = object.morphTargetDictionary;
+        const influences = object.morphTargetInfluences;
+        
+        // 設定されたブレンドシェイプを試行
+        const configuredShapes = [
+          avatarData.blendShapeNames.belly,
+          avatarData.blendShapeNames.weight,
+          avatarData.blendShapeNames.fat
+        ].filter(Boolean);
+        
+        for (const shapeName of configuredShapes) {
+          if (dictionary[shapeName!] !== undefined) {
+            const index = dictionary[shapeName!];
+            influences[index] = value;
+            updated = true;
+            setCurrentBlendShape(shapeName!);
+            return;
+          }
+        }
+        
+        // 体型関連を自動検出
+        if (!updated) {
+          const bodyShapes = Object.keys(dictionary).filter(name => {
+            const lowerName = name.toLowerCase();
+            return lowerName.includes('belly') || lowerName.includes('weight') || 
+                   lowerName.includes('fat') || lowerName.includes('body') ||
+                   lowerName.includes('chest') || lowerName.includes('waist') ||
+                   lowerName.includes('hip') || lowerName.includes('muscle');
+          });
+          
+          if (bodyShapes.length > 0) {
+            const shapeName = bodyShapes[0];
+            const index = dictionary[shapeName];
+            influences[index] = value;
+            updated = true;
+            setCurrentBlendShape(shapeName);
+          }
+        }
+      }
+    });
+    
+    if (!updated) {
+      // 動的メッシュ変形を実行
+      const bmiValue = 18.5 + (value * 16.5);
+      console.log(`🔧 動的変形実行: スライダー${(value*100).toFixed(0)}% -> BMI${bmiValue.toFixed(1)}`);
+      
+      if (!meshDeformerRef.current) {
+        meshDeformerRef.current = new DynamicMeshDeformer();
+      }
+      applyDynamicMeshDeformation(bmiValue);
+    }
+  };
+
+  // 動的メッシュ変形による体型変更（新機能）
+  const applyDynamicMeshDeformation = (bmiValue: number) => {
+    if (!vrmRef.current || !meshDeformerRef.current) return;
+    
+    const deformationOptions = meshDeformerRef.current.calculateDeformationFromBMI(bmiValue);
+    let deformedMeshCount = 0;
+    
+    vrmRef.current.scene.traverse((object: any) => {
+      if (object.isSkinnedMesh && object.name) {
+        const objName = object.name.toLowerCase();
+        const isBodyMesh = !objName.includes('face') && !objName.includes('head') && !objName.includes('hair');
+        
+        if (isBodyMesh) {
+          meshDeformerRef.current!.deformMesh(object, deformationOptions);
+          deformedMeshCount++;
+        }
+      }
+    });
+    
+    if (deformedMeshCount > 0) {
+      setCurrentBlendShape(`動的変形 BMI:${bmiValue.toFixed(1)}`);
+      console.log(`✅ 動的変形完了: ${deformedMeshCount}個のメッシュ`);
+    } else {
+      // 強制的に全SkinnedMeshに適用
+      vrmRef.current.scene.traverse((object: any) => {
+        if (object.isSkinnedMesh && object.geometry?.attributes?.position) {
+          try {
+            meshDeformerRef.current!.saveOriginalVertices(object);
+            meshDeformerRef.current!.deformMesh(object, deformationOptions);
+            deformedMeshCount++;
+          } catch (error) {
+            console.error(`変形エラー: ${object.name}`, error);
           }
         }
       });
-
-      const box = new THREE.Box3().setFromObject(vrm.scene);
-      const center = box.getCenter(new THREE.Vector3());
-      const size = box.getSize(new THREE.Vector3());
-      const maxDim = Math.max(size.x, size.y, size.z);
-      const fov = cameraRef.current.fov * (Math.PI / 180);
-      let cameraZ = Math.abs(maxDim / 2 / Math.tan(fov / 2));
       
-      
-      cameraRef.current.position.set(center.x, center.y + size.y / 4, cameraZ);
-      cameraRef.current.lookAt(center);
-
-      setLoadingProgress(100);
-      setLoadingStep('完了!');
-      
-      setTimeout(() => {
-        setIsLoading(false);
-        currentLoadingPathRef.current = null; // 読み込み完了時にクリア
-      }, 500);
-      
-      // メモリ使用量をログ出力
-      if (performance.memory) {
-        MemoryMonitor.logMemoryInfo('VRM読み込み完了');
-        
-        console.log('最適化結果:', {
-          blendShapeMemory: `${(analysisResult.totalMemoryUsage / 1024 / 1024).toFixed(1)}MB`,
-          totalBlendShapes: analysisResult.totalBlendShapes,
-          disabledBlendShapes: unnecessaryBlendShapes.length,
-          cacheStatus: VRMCache.getStatus()
-        });
-      }
-    } catch (error) {
-      console.error('VRM読み込みエラー:', error);
-      MemoryMonitor.logMemoryInfo('VRM読み込みエラー');
-      
-      // メモリ不足の場合は緊急クリーンアップ
-      if (MemoryMonitor.isMemoryDangerous()) {
-        MemoryMonitor.emergencyMemoryCleanup();
-        VRMCache.clearAll();
-      }
-      
-      if (error instanceof Error && (error.message.includes('メモリ') || error.message.includes('memory'))) {
-        setError(`メモリ不足のため読み込みに失敗しました。ブラウザを再起動してお試しください。`);
+      if (deformedMeshCount > 0) {
+        setCurrentBlendShape(`強制動的変形 BMI:${bmiValue.toFixed(1)}`);
+        console.log(`✅ 強制変形完了: ${deformedMeshCount}個のメッシュ`);
       } else {
-        setError(`VRMファイルの読み込みに失敗しました: ${avatarData.name}`);
+        console.log('🔧 スケール変形にフォールバック');
+        applyScaleTransformation(Math.min(1.0, (bmiValue - 18.5) / 15));
       }
-      setIsLoading(false);
-      currentLoadingPathRef.current = null; // エラー時にもクリア
     }
-  }, [isLoading]);
+  };
 
-  const handleContainerRef = useCallback((element: HTMLDivElement | null) => {
-    console.log('handleContainerRef called:', { element: !!element, isInitialized: isInitializedRef.current });
+  // スケール変形による代替機能（フォールバック）
+  const applyScaleTransformation = (value: number) => {
+    if (!vrmRef.current) return;
     
-    if (!element) {
+    console.log('🔧 スケール変形開始 - value:', value);
+    
+    // お腹周りを模倣するスケール変形
+    const scaleValue = 1.0 + (value * 0.3); // 最大30%まで拡大
+    
+    vrmRef.current.scene.traverse((object: any) => {
+      if (object.isSkinnedMesh) {
+        // 胴体部分のボーンを探してスケール調整
+        const boneName = object.name?.toLowerCase();
+        if (boneName && (boneName.includes('body') || boneName.includes('spine') || boneName.includes('chest'))) {
+          console.log('🎯 胴体メッシュ発見:', object.name);
+          
+          // X軸（幅）とZ軸（奥行き）を拡大してお腹の膨らみを模倣
+          object.scale.setX(scaleValue);
+          object.scale.setZ(scaleValue);
+          
+          console.log(`📏 スケール変形適用: ${object.name} -> X:${scaleValue}, Z:${scaleValue}`);
+          setCurrentBlendShape(`スケール変形 (${(value * 100).toFixed(0)}%)`);
+        }
+      }
+    });
+    
+    console.log('✅ スケール変形完了');
+  };
+
+  // 個別ブレンドシェイプテスト関数
+  const testBlendShape = (name: string, value: number) => {
+    if (!vrmRef.current) {
+      console.log('❌ VRMが読み込まれていません');
       return;
     }
     
-    containerRef.current = element;
+    console.log(`🧪 ブレンドシェイプテスト開始: ${name} = ${value}`);
+    let updated = false;
     
-    // React開発モードでの重複初期化を防ぐ
-    if (isInitializedRef.current) {
-      console.log('既に初期化済み、Three.js準備完了を通知');
-      // 既に初期化済みの場合は即座に準備完了を通知
-      setTimeout(() => setIsThreeJSReady(true), 0);
+    vrmRef.current.scene.traverse((object: any) => {
+      if (object.isSkinnedMesh && object.morphTargetDictionary) {
+        const dictionary = object.morphTargetDictionary;
+        const influences = object.morphTargetInfluences;
+        
+        if (dictionary[name] !== undefined) {
+          const index = dictionary[name];
+          const previousValue = influences[index];
+          influences[index] = value;
+          
+          console.log(`✅ ブレンドシェイプ更新: ${name} [${index}] ${previousValue} -> ${value}`);
+          updated = true;
+          
+          // 現在のブレンドシェイプを更新
+          if (value > 0) {
+            setCurrentBlendShape(name);
+          }
+        }
+      }
+    });
+    
+    if (updated) {
+      console.log(`✅ ブレンドシェイプテスト完了: ${name}`);
+      
+      // 手動調整値も更新（UI同期のため）
+      if (value > 0) {
+        setManualBellyValue(value);
+        setUseManualAdjustment(true);
+      }
+    } else {
+      console.log(`❌ ブレンドシェイプが見つかりません: ${name}`);
+    }
+  };
+
+  // 初期化（安定版）
+  useEffect(() => {
+    // 既に初期化済みまたはクリーンアップ済みの場合はスキップ
+    if (initRef.current || isCleanedUpRef.current || !containerRef.current) {
       return;
     }
     
-    isInitializedRef.current = true;
-    
-    console.log('Three.js初期化を開始します');
-    
-    // Three.js初期化
+    initRef.current = true;
+    console.log('🚀 VRMViewer初期化開始（安定版）');
+
+    // Three.js基本設定
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x212121);
     sceneRef.current = scene;
 
     const camera = new THREE.PerspectiveCamera(
       75,
-      element.clientWidth / element.clientHeight,
+      containerRef.current.clientWidth / containerRef.current.clientHeight,
       0.1,
       1000
     );
-    camera.position.set(0, 1, 2);
+    camera.position.set(0, 1, 5);
     cameraRef.current = camera;
 
-    // デバイスメモリに基づいたレンダリング設定
-    const memoryGB = (navigator as any).deviceMemory || 4;
-    const pixelRatio = memoryGB <= 4 ? 1.0 : memoryGB <= 8 ? 1.0 : Math.min(window.devicePixelRatio, 1.5);
-    
-    const renderer = new THREE.WebGLRenderer({ 
-      antialias: false, // アンチエイリアス完全無効
-      alpha: true,
-      powerPreference: memoryGB <= 4 ? 'default' : 'high-performance',
-      stencil: false,
-      depth: true,
-      logarithmicDepthBuffer: false,
-      preserveDrawingBuffer: false, // メモリ節約
-      premultipliedAlpha: false // メモリ節約
-    });
-    renderer.setSize(element.clientWidth, element.clientHeight);
-    renderer.setPixelRatio(pixelRatio); // メモリに基づいたピクセル比
-    renderer.shadowMap.enabled = false; // シャドウ完全無効
-    renderer.outputColorSpace = THREE.SRGBColorSpace;
-    
-    // 低スペック向け追加最適化
-    if (memoryGB <= 4) {
-      renderer.precision = 'lowp';
-      renderer.physicallyCorrectLights = false;
-    }
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(containerRef.current.clientWidth, containerRef.current.clientHeight);
+    renderer.setClearColor(0x212121);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    containerRef.current.appendChild(renderer.domElement);
     rendererRef.current = renderer;
 
-    element.appendChild(renderer.domElement);
-
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+    // ライト
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
     scene.add(ambientLight);
 
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
     directionalLight.position.set(1, 1, 1);
-    directionalLight.castShadow = false; // シャドウ無効でパフォーマンス向上
+    directionalLight.castShadow = true;
     scene.add(directionalLight);
+    
+    const frontLight = new THREE.DirectionalLight(0xffffff, 0.5);
+    frontLight.position.set(0, 0, 1);
+    scene.add(frontLight);
 
-    // テスト用キューブ（VRM読み込み前の確認）
+    // テスト用キューブ
     const geometry = new THREE.BoxGeometry();
     const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
     const testCube = new THREE.Mesh(geometry, material);
-    testCube.position.set(0, 0, 0);
     scene.add(testCube);
     testCubeRef.current = testCube;
-    console.log('🟢 テスト用キューブを追加しました');
 
-    // フレームレート制限付きアニメーションループ
-    const animate = (currentTime: number) => {
-      animationIdRef.current = requestAnimationFrame(animate);
+    // アニメーションループ（メモリリーク対策済み）
+    let frameCount = 0;
+    const animate = () => {
+      if (isCleanedUpRef.current) return;
       
-      // デバイスメモリに基づいたFPS制限（緩和）
-      const memoryGB = (navigator as any).deviceMemory || 4;
-      const targetFPS = memoryGB <= 4 ? 15 : memoryGB <= 8 ? 30 : 60;
-      const frameInterval = 1000 / targetFPS;
+      memoryPrevention.safeRequestAnimationFrame(animate);
       
-      if (currentTime - lastUpdateTimeRef.current < frameInterval) {
-        return;
-      }
-      lastUpdateTimeRef.current = currentTime;
-      
-      // ページが見えている時のみレンダリング
-      if (!isVisible) {
-        return;
-      }
-      
-      // テスト用キューブの回転
       if (testCubeRef.current) {
         testCubeRef.current.rotation.x += 0.01;
         testCubeRef.current.rotation.y += 0.01;
       }
       
       if (vrmRef.current) {
-        const memoryGB = (navigator as any).deviceMemory || 4;
-        const targetFPS = memoryGB <= 4 ? 15 : memoryGB <= 8 ? 30 : 60;
-        const deltaTime = 1 / targetFPS;
-        vrmRef.current.update(deltaTime);
+        vrmRef.current.update(0.016);
       }
       
       renderer.render(scene, camera);
+      
+      frameCount++;
+      if (frameCount <= 5) {
+        console.log(`🎬 フレーム ${frameCount}: シーン内オブジェクト数=${scene.children.length}`);
+      }
     };
-    animate(0);
+    animate();
 
+    // リサイズ処理（メモリリーク対策済み）
     const handleResize = () => {
-      if (!element || !renderer || !camera) return;
+      if (!containerRef.current || !renderer || !camera || isCleanedUpRef.current) return;
       
-      camera.aspect = element.clientWidth / element.clientHeight;
+      camera.aspect = containerRef.current.clientWidth / containerRef.current.clientHeight;
       camera.updateProjectionMatrix();
-      renderer.setSize(element.clientWidth, element.clientHeight);
-    };
-
-    window.addEventListener('resize', handleResize);
-    
-    // ページの可視性を監視してレンダリングを停止
-    const handleVisibilityChange = () => {
-      setIsVisible(!document.hidden);
+      renderer.setSize(containerRef.current.clientWidth, containerRef.current.clientHeight);
     };
     
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    
-    // Three.js初期化完了を通知
-    console.log('Three.js初期化完了');
-    setIsThreeJSReady(true);
-  }, []);
+    memoryPrevention.safeAddEventListener(window, 'resize', handleResize);
 
-  useEffect(() => {
-    // メモリ監視開始
-    MemoryMonitor.startMonitoring((usage) => {
-      if (usage.status === 'critical') {
-        console.warn('🚨 メモリ使用量が最大値に達しました');
-        MemoryMonitor.emergencyMemoryCleanup();
-        VRMCache.emergencyCleanup();
-      }
-    });
-    
+    console.log('🎯 Three.js初期化完了');
+
+    // シンプルなクリーンアップ
     return () => {
-      // メモリ監視停止
-      MemoryMonitor.stopMonitoring();
+      console.log('🧹 VRMViewer クリーンアップ');
+      isCleanedUpRef.current = true;
       
-      // 既存のロードプロセスをキャンセル
-      if (loadingControllerRef.current) {
-        loadingControllerRef.current.abort();
+      // 全てのメモリリーク対策付きタイマーとイベントをクリア
+      memoryPrevention.cleanupAll();
+      
+      // メッシュ変形のクリーンアップ
+      if (meshDeformerRef.current) {
+        meshDeformerRef.current.cleanup();
+        meshDeformerRef.current = null;
       }
       
-      // 読み込み中のパスをクリア
-      currentLoadingPathRef.current = null;
-      
-      // テストキューブをクリア
-      testCubeRef.current = null;
-      
-      if (animationIdRef.current) {
-        cancelAnimationFrame(animationIdRef.current);
-      }
-      
-      // VRMの完全なクリーンアップ
-      if (vrmRef.current) {
-        if (sceneRef.current) {
-          sceneRef.current.remove(vrmRef.current.scene);
-        }
-        // 安全にdisposeを呼び出し
-        if (typeof vrmRef.current.dispose === 'function') {
-          vrmRef.current.dispose();
-        }
-        
-        // VRMに関連するすべての参照をクリア
-        if (vrmRef.current.expressionManager) {
-          vrmRef.current.expressionManager = null;
-        }
-        if (vrmRef.current.lookAt) {
-          vrmRef.current.lookAt = null;
-        }
-        if (vrmRef.current.humanoid) {
-          vrmRef.current.humanoid = null;
-        }
+      // VRMのクリーンアップ
+      if (vrmRef.current && sceneRef.current) {
+        sceneRef.current.remove(vrmRef.current.scene);
         vrmRef.current = null;
       }
       
-      if (containerRef.current && rendererRef.current?.domElement) {
-        try {
-          containerRef.current.removeChild(rendererRef.current.domElement);
-        } catch (e) {
-          console.warn('Failed to remove renderer DOM element:', e);
-        }
+      // テストキューブのクリーンアップ
+      if (testCubeRef.current && sceneRef.current) {
+        sceneRef.current.remove(testCubeRef.current);
+        testCubeRef.current = null;
       }
       
-      if (rendererRef.current) {
-        // WebGLレンダリングコンテキストの完全なクリーンアップ
-        const gl = rendererRef.current.getContext();
-        if (gl) {
-          // テクスチャとバッファの明示的な削除
-          const loseContext = gl.getExtension('WEBGL_lose_context');
-          if (loseContext) {
-            loseContext.loseContext();
-          }
-        }
-        
-        // レンダラーの完全なクリーンアップ
-        rendererRef.current.dispose();
-        rendererRef.current.forceContextLoss();
-        rendererRef.current = null;
-      }
-      
+      // シーンのクリーンアップ
       if (sceneRef.current) {
-        // シーンの完全なクリーンアップ
-        sceneRef.current.traverse((object: any) => {
-          if (object.geometry) {
-            object.geometry.dispose();
-          }
-          if (object.material) {
-            if (Array.isArray(object.material)) {
-              object.material.forEach((material: any) => {
-                if (material.map) material.map.dispose();
-                if (material.normalMap) material.normalMap.dispose();
-                if (material.emissiveMap) material.emissiveMap.dispose();
-                if (material.roughnessMap) material.roughnessMap.dispose();
-                if (material.metalnessMap) material.metalnessMap.dispose();
-                if (material.aoMap) material.aoMap.dispose();
-                material.dispose();
-              });
-            } else {
-              if (object.material.map) object.material.map.dispose();
-              if (object.material.normalMap) object.material.normalMap.dispose();
-              if (object.material.emissiveMap) object.material.emissiveMap.dispose();
-              if (object.material.roughnessMap) object.material.roughnessMap.dispose();
-              if (object.material.metalnessMap) object.material.metalnessMap.dispose();
-              if (object.material.aoMap) object.material.aoMap.dispose();
-              object.material.dispose();
-            }
-          }
-        });
         sceneRef.current.clear();
         sceneRef.current = null;
       }
       
-      // TextureOptimizerのクリーンアップ
-      TextureOptimizer.cleanup();
-      
-      document.removeEventListener('visibilitychange', () => {});
-      window.removeEventListener('resize', () => {});
-      
-      // キャッシュクリア
-      VRMCache.clearAll();
-      
-      // 最終メモリクリーンアップ（1回のみ）
-      MemoryMonitor.emergencyMemoryCleanup();
-    };
-  }, []);
-
-  const updateBodyShape = useCallback((bmiValue: number) => {
-    if (!vrmRef.current) return;
-    
-    vrmRef.current.scene.traverse((object: any) => {
-      if (object.isSkinnedMesh && object.morphTargetDictionary) {
-        const blendShapeNames = avatarData.blendShapeNames;
-        let bellyIndex = undefined;
-
-        if (blendShapeNames.belly && object.morphTargetDictionary[blendShapeNames.belly] !== undefined) {
-          bellyIndex = object.morphTargetDictionary[blendShapeNames.belly];
-        } else if (blendShapeNames.weight && object.morphTargetDictionary[blendShapeNames.weight] !== undefined) {
-          bellyIndex = object.morphTargetDictionary[blendShapeNames.weight];
-        } else if (blendShapeNames.fat && object.morphTargetDictionary[blendShapeNames.fat] !== undefined) {
-          bellyIndex = object.morphTargetDictionary[blendShapeNames.fat];
+      // レンダラーのクリーンアップ
+      if (rendererRef.current) {
+        if (containerRef.current && rendererRef.current.domElement && containerRef.current.contains(rendererRef.current.domElement)) {
+          containerRef.current.removeChild(rendererRef.current.domElement);
         }
-        
-        if (bellyIndex !== undefined) {
-          let blendValue = 0;
-          
-          if (bmiValue <= 25) {
-            blendValue = 0;
-          } else if (bmiValue > 25 && bmiValue <= 30) {
-            blendValue = ((bmiValue - 25) / 5) * 0.5;
-          } else if (bmiValue > 30) {
-            blendValue = Math.min(0.5 + ((bmiValue - 30) / 10) * 0.5, 1.0);
-          }
-          
-          object.morphTargetInfluences[bellyIndex] = blendValue;
-        }
+        rendererRef.current.dispose();
+        rendererRef.current = null;
       }
-    });
+      
+      cameraRef.current = null;
+      initRef.current = false;
+    };
+  }, []); // マウント時のみ実行
+
+  // avatarDataが変更されたらVRMを読み込む（シンプル版）
+  useEffect(() => {
+    if (avatarData && initRef.current && !isCleanedUpRef.current) {
+      console.log('🔄 VRM読み込み:', avatarData.name);
+      loadVRM(avatarData.vrmPath);
+    }
   }, [avatarData]);
 
+  // BMIが変更されたら体型を更新
   useEffect(() => {
-    console.log('useEffect [avatarData, isThreeJSReady]:', {
-      avatarId: avatarData?.id,
-      vrmPath: avatarData?.vrmPath,
-      threeJSReady: isThreeJSReady
-    });
-    
-    if (avatarData && isThreeJSReady) {
-      console.log('loadVRM呼び出し開始:', avatarData.name);
-      loadVRM(avatarData);
-    } else if (!avatarData) {
-      console.log('avatarDataがnull/undefinedです');
-    } else if (!isThreeJSReady) {
-      console.log('Three.jsが初期化されるまで待機中...');
-    }
-  }, [avatarData, isThreeJSReady]); // loadVRMを依存関係から削除
-
-  useEffect(() => {
-    if (currentBMI > 0) {
+    if (currentBMI > 0 && !useManualAdjustment && !isCleanedUpRef.current) {
       updateBodyShape(currentBMI);
     }
-  }, [currentBMI, updateBodyShape]);
+  }, [currentBMI, useManualAdjustment]);
 
+  // 未来のBMI予測のアニメーション（メモリリーク対策済み）
   useEffect(() => {
-    if (futureBMI.length === 0) return;
+    if (futureBMI.length === 0 || useManualAdjustment || isCleanedUpRef.current) return;
 
-    const interval = setInterval(() => {
+    const clearIntervalCallback = memoryPrevention.safeSetInterval(() => {
       setCurrentPredictionIndex((prevIndex) => {
         const nextIndex = (prevIndex + 1) % futureBMI.length;
         const nextBMI = futureBMI[nextIndex].bmi;
@@ -683,54 +709,305 @@ export default function VRMViewer({ currentBMI, futureBMI, avatarData, userData 
       });
     }, 3000);
 
-    return () => clearInterval(interval);
-  }, [futureBMI, updateBodyShape]);
-
-  if (isLoading || error) {
-    return (
-      <div className="w-full h-full relative">
-        <MemoryDebugPanel />
-        <VRMLoadingIndicator 
-          isLoading={isLoading}
-          progress={loadingProgress}
-          currentStep={loadingStep}
-          error={error}
-        />
-      </div>
-    );
-  }
-
-  console.log('VRMViewer render時の状態:', {
-    isLoading,
-    error,
-    isThreeJSReady,
-    containerRefExists: !!containerRef.current
-  });
+    return clearIntervalCallback;
+  }, [futureBMI, useManualAdjustment, memoryPrevention]);
 
   return (
-    <div className="w-full h-full relative">
-      <MemoryDebugPanel />
-      <div 
-        ref={handleContainerRef}
-        className="w-full h-full rounded-lg overflow-hidden"
-        style={{ minHeight: '400px', backgroundColor: '#f0f0f0' }}
-      />
-      
-      {futureBMI.length > 0 && (
-        <div className="absolute top-4 left-4 bg-black bg-opacity-50 text-white px-3 py-2 rounded-md text-sm">
-          {futureBMI[currentPredictionIndex] && (
-            <div>
-              <p>期間: {futureBMI[currentPredictionIndex].period === 30 ? '1ヶ月後' : 
-                     futureBMI[currentPredictionIndex].period === 365 ? '1年後' :
-                     futureBMI[currentPredictionIndex].period === 1095 ? '3年後' :
-                     futureBMI[currentPredictionIndex].period === 1825 ? '5年後' :
-                     futureBMI[currentPredictionIndex].period === 3650 ? '10年後' : 
-                     `${futureBMI[currentPredictionIndex].period}日後`}</p>
-              <p>BMI: {futureBMI[currentPredictionIndex].bmi.toFixed(1)}</p>
-            </div>
-          )}
+    <div className="w-full space-y-4">
+      {/* アバター情報ヘッダー */}
+      <div className="flex justify-between items-center">
+        <div className="flex items-center space-x-3">
+          <div className="w-12 h-12 bg-gray-100 rounded-lg overflow-hidden">
+            <img
+              src={avatarData.thumbnailPath}
+              alt={avatarData.name}
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                e.currentTarget.src = '/placeholder-avatar.png';
+              }}
+            />
+          </div>
+          <div>
+            <h3 className="font-semibold text-gray-800">{avatarData.name}</h3>
+            <p className="text-sm text-gray-600">{avatarData.description}</p>
+          </div>
         </div>
-      )}
+        <div className="text-right">
+          <p className="text-sm text-gray-500">現在のBMI</p>
+          <p className="text-lg font-bold text-blue-600">{currentBMI.toFixed(1)}</p>
+        </div>
+      </div>
+      
+      {/* お腹周りの手動調整コントロール */}
+      <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <h4 className="font-medium text-gray-700">お腹周りの調整（メモリリーク対策済み）</h4>
+          <div className="flex items-center space-x-4">
+            <label className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                checked={showDebugInfo}
+                onChange={(e) => setShowDebugInfo(e.target.checked)}
+                className="rounded"
+              />
+              <span className="text-sm text-gray-600">デバッグ情報</span>
+            </label>
+            <label className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                checked={useManualAdjustment}
+                onChange={(e) => setUseManualAdjustment(e.target.checked)}
+                className="rounded"
+              />
+              <span className="text-sm text-gray-600">手動調整</span>
+            </label>
+          </div>
+        </div>
+        
+        {/* デバッグ用スライダー（常に表示） */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-gray-600">
+              🎛️ お腹の膨らみ{useManualAdjustment ? '（手動調整モード）' : '（デバッグ用）'}
+            </span>
+            <span className="text-sm font-medium text-blue-600">
+              {(manualBellyValue * 100).toFixed(0)}%
+            </span>
+          </div>
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.01"
+            value={manualBellyValue}
+            onChange={(e) => handleManualBellyChange(parseFloat(e.target.value))}
+            className="w-full h-3 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
+            style={{
+              background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${manualBellyValue * 100}%, #e5e7eb ${manualBellyValue * 100}%, #e5e7eb 100%)`
+            }}
+          />
+          <div className="flex justify-between text-xs text-gray-500">
+            <span>0% (標準)</span>
+            <span>50%</span>
+            <span>100% (最大)</span>
+          </div>
+          <div className="flex items-center justify-between text-xs">
+            <span className={useManualAdjustment ? 'text-green-600' : 'text-gray-500'}>
+              {useManualAdjustment ? '✅ 手動調整有効' : '⏸️ BMI自動計算中'}
+            </span>
+            <button
+              onClick={() => setManualBellyValue(0)}
+              className="px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded text-xs"
+            >
+              リセット
+            </button>
+          </div>
+          
+          {/* リアルタイム値表示 */}
+          <div className="grid grid-cols-3 gap-2 text-xs">
+            <div className="bg-blue-50 p-2 rounded text-center">
+              <div className="font-semibold text-blue-600">BMI</div>
+              <div>{currentBMI.toFixed(1)}</div>
+            </div>
+            <div className="bg-green-50 p-2 rounded text-center">
+              <div className="font-semibold text-green-600">スライダー</div>
+              <div>{(manualBellyValue * 100).toFixed(0)}%</div>
+            </div>
+            <div className="bg-purple-50 p-2 rounded text-center">
+              <div className="font-semibold text-purple-600">適用値</div>
+              <div>{manualBellyValue > 0 ? (manualBellyValue * 100).toFixed(0) + '%' : 'BMI連動'}</div>
+            </div>
+          </div>
+          
+          {/* プリセットボタン */}
+          <div className="space-y-1">
+            <div className="text-xs text-gray-600 font-medium">クイック設定:</div>
+            <div className="grid grid-cols-5 gap-1">
+              {[
+                { label: '標準', value: 0 },
+                { label: '軽微', value: 0.2 },
+                { label: '普通', value: 0.4 },
+                { label: '顕著', value: 0.7 },
+                { label: '最大', value: 1.0 }
+              ].map((preset) => (
+                <button
+                  key={preset.label}
+                  onClick={() => {
+                    setManualBellyValue(preset.value);
+                    handleManualBellyChange(preset.value);
+                  }}
+                  className={`px-2 py-1 rounded text-xs transition-colors ${
+                    Math.abs(manualBellyValue - preset.value) < 0.05
+                      ? 'bg-blue-500 text-white'
+                      : 'bg-gray-200 hover:bg-gray-300'
+                  }`}
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+        
+        {/* ローディング状態 */}
+        {isLoading && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+            <p className="text-blue-700">🔄 VRM読み込み中...</p>
+          </div>
+        )}
+        
+        {/* コンポーネント状態デバッグ（開発環境のみ） */}
+        {process.env.NODE_ENV === 'development' && (
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-2 text-xs">
+            <div className="grid grid-cols-2 gap-1">
+              <span className={initRef.current ? 'text-green-600' : 'text-red-600'}>
+                初期化: {initRef.current ? '✅' : '❌'}
+              </span>
+              <span className={!isCleanedUpRef.current ? 'text-green-600' : 'text-red-600'}>
+                アクティブ: {!isCleanedUpRef.current ? '✅' : '❌'}
+              </span>
+              <span className={!!sceneRef.current ? 'text-green-600' : 'text-red-600'}>
+                シーン: {!!sceneRef.current ? '✅' : '❌'}
+              </span>
+              <span className={!!vrmRef.current ? 'text-green-600' : 'text-red-600'}>
+                VRM: {!!vrmRef.current ? '✅' : '❌'}
+              </span>
+            </div>
+          </div>
+        )}
+        
+        {/* エラー表示 */}
+        {loadingError && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+            <p className="text-red-700">❌ {loadingError}</p>
+          </div>
+        )}
+        
+        {/* デバッグ情報 */}
+        {showDebugInfo && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 space-y-2">
+            <h5 className="font-medium text-blue-800">ブレンドシェイプデバッグ情報（改良版）</h5>
+            <div className="text-sm text-blue-700 space-y-1">
+              <p><strong>設定されたブレンドシェイプ:</strong></p>
+              <ul className="list-disc pl-5 space-y-1">
+                {avatarData.blendShapeNames.belly && (
+                  <li>belly: "{avatarData.blendShapeNames.belly}"</li>
+                )}
+                {avatarData.blendShapeNames.weight && (
+                  <li>weight: "{avatarData.blendShapeNames.weight}"</li>
+                )}
+                {avatarData.blendShapeNames.fat && (
+                  <li>fat: "{avatarData.blendShapeNames.fat}"</li>
+                )}
+              </ul>
+              
+              {currentBlendShape && (
+                <p><strong>現在使用中:</strong> {currentBlendShape}</p>
+              )}
+              
+              <p><strong>利用可能なブレンドシェイプ数:</strong> {availableBlendShapes.length}</p>
+              
+              {availableBlendShapes.length === 0 && (
+                <div className="bg-yellow-50 border border-yellow-200 rounded p-2 mt-2">
+                  <p className="text-yellow-800 font-semibold">⚠️ ブレンドシェイプが見つかりません</p>
+                  <p className="text-yellow-700 text-xs">スケール変形による代替機能を使用します</p>
+                </div>
+              )}
+              
+              {availableBlendShapes.length > 0 && (
+                <details className="mt-2">
+                  <summary className="cursor-pointer text-blue-600 hover:text-blue-800">
+                    すべてのブレンドシェイプをテスト ({availableBlendShapes.length}個)
+                  </summary>
+                  <div className="mt-2 max-h-40 overflow-y-auto space-y-1">
+                    {availableBlendShapes.map((name, index) => (
+                      <div key={index} className="flex items-center justify-between bg-gray-50 p-2 rounded text-xs">
+                        <span className={name === currentBlendShape ? 'font-bold text-green-600' : 'text-gray-700'}>
+                          {name}
+                        </span>
+                        <div className="flex space-x-1">
+                          <button
+                            onClick={() => testBlendShape(name, 0.5)}
+                            className="px-2 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600"
+                          >
+                            テスト
+                          </button>
+                          <button
+                            onClick={() => testBlendShape(name, 0)}
+                            className="px-2 py-1 bg-gray-400 text-white rounded text-xs hover:bg-gray-500"
+                          >
+                            リセット
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              )}
+              
+              <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded">
+                <p className="text-xs text-yellow-700">
+                  <strong>メモリリーク対策:</strong> タイマーとイベントリスナーは自動的にクリーンアップされます
+                </p>
+                <p className="text-xs text-yellow-700 mt-1">
+                  デバッグ: window.debugMemoryLeak.getReport() でメモリ状況を確認
+                </p>
+              </div>
+              
+              {detailedAnalysis && (
+                <div className="mt-3 p-3 bg-white rounded border">
+                  <h6 className="font-semibold text-gray-800 mb-2">詳細分析結果</h6>
+                  <div className="text-xs text-gray-600 space-y-1">
+                    <p><strong>総ブレンドシェイプ数:</strong> {detailedAnalysis.totalBlendShapes}</p>
+                    <p><strong>体型関連ブレンドシェイプ:</strong> {detailedAnalysis.bodyBlendShapes.length}個</p>
+                    <p><strong>推定メモリ使用量:</strong> {(detailedAnalysis.totalMemoryUsage / 1024).toFixed(1)}KB</p>
+                    
+                    {detailedAnalysis.bodyBlendShapes.length > 0 && (
+                      <div className="mt-2">
+                        <p><strong>体型関連ブレンドシェイプ一覧:</strong></p>
+                        <ul className="list-disc pl-4 mt-1 max-h-24 overflow-y-auto">
+                          {detailedAnalysis.bodyBlendShapes.map((bs: any, index: number) => (
+                            <li key={index} className={bs.name === currentBlendShape ? 'font-bold text-green-600' : ''}>
+                              {bs.name}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+      
+      {/* 3Dビューアー */}
+      <div className="relative">
+        <div 
+          ref={containerRef}
+          className="w-full rounded-lg overflow-hidden border-2 border-gray-200"
+          style={{ height: '800px', backgroundColor: '#f0f0f0' }}
+        />
+        
+        {futureBMI.length > 0 && !useManualAdjustment && (
+          <div className="absolute top-3 left-3 bg-black bg-opacity-70 text-white px-3 py-2 rounded-lg text-sm">
+            {futureBMI[currentPredictionIndex] && (
+              <div>
+                <p className="font-semibold">
+                  {futureBMI[currentPredictionIndex].period === 30 ? '1ヶ月後' : 
+                   futureBMI[currentPredictionIndex].period === 365 ? '1年後' :
+                   futureBMI[currentPredictionIndex].period === 1095 ? '3年後' :
+                   futureBMI[currentPredictionIndex].period === 1825 ? '5年後' :
+                   futureBMI[currentPredictionIndex].period === 3650 ? '10年後' : 
+                   `${futureBMI[currentPredictionIndex].period}日後`}
+                </p>
+                <p className="text-yellow-300">BMI: {futureBMI[currentPredictionIndex].bmi.toFixed(1)}</p>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -6,15 +6,16 @@ import dynamic from 'next/dynamic';
 import { AVATAR_LIST, AvatarData, getAvatarById } from '../utils/avatarConfig';
 import BMICalculator from '../components/BMICalculator';
 import WelcomeScreen from '../components/WelcomeScreen';
+import { ErrorBoundary } from '../components/ErrorBoundary';
 import { calculateBMI } from '../utils/calculations';
 
-const TestVRMViewer = dynamic(() => import('../components/TestVRMViewer'), {
+const VRMViewer = dynamic(() => import('../components/VRMViewer'), {
   ssr: false,
   loading: () => (
     <div className="w-full h-full flex items-center justify-center bg-gray-900 rounded-lg">
       <div className="text-white text-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mb-4 mx-auto"></div>
-        <p>3Dアバターを読み込み中...</p>
+        <p>🎛️ 改良版VRMビューアーを読み込み中...</p>
       </div>
     </div>
   )
@@ -122,7 +123,14 @@ export default function Home() {
           <div className="flex flex-col gap-4">
             {/* 右上: アバター表示 */}
             <div className="bg-white rounded-lg shadow-lg p-4 flex-1">
-              <TestVRMViewer avatarData={selectedAvatar} />
+              <ErrorBoundary>
+                <VRMViewer 
+                  currentBMI={currentBMI}
+                  futureBMI={futureBMI}
+                  avatarData={selectedAvatar}
+                  userData={userData}
+                />
+              </ErrorBoundary>
             </div>
             
             {/* 右下: アバター詳細・変更ボタン */}
