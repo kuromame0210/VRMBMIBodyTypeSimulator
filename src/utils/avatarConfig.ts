@@ -9,6 +9,7 @@ export interface AvatarData {
     belly?: string;
     weight?: string;
     fat?: string;
+    fatness?: string;
   };
 }
 
@@ -156,6 +157,66 @@ export const AVATAR_LIST: AvatarData[] = [
       belly: 'Belly',
       fat: 'Fat'
     }
+  },
+  // fatnessブレンドシェイプテスト用
+  {
+    id: 'f_0_17_fatness',
+    name: '女性タイプA (Fatnessテスト)',
+    gender: 'female',
+    vrmPath: '/vrm-models/f_0_17_fatness.vrm',
+    thumbnailPath: '/vrm-models/thumbnails/f_0_17.png',
+    description: 'Fatnessブレンドシェイプ付きテストアバター',
+    blendShapeNames: {
+      fatness: 'fatness'
+    }
+  },
+  // 新しいfatness VRMファイル
+  {
+    id: 'f_0_17_temp_fatness',
+    name: '女性タイプA (新Fatnessテスト)',
+    gender: 'female',
+    vrmPath: '/vrm-models/f_0_17.temp1738768042_1.vrm',
+    thumbnailPath: '/vrm-models/thumbnails/f_0_17.png',
+    description: '新しいFatnessブレンドシェイプ付きテストアバター（fatness, fatness1含む）',
+    blendShapeNames: {
+      fatness: 'fatness'
+    }
+  },
+  // fatnessのみのVRMファイル
+  {
+    id: 'f_0_17_temp_fatness_2',
+    name: '女性タイプA (Fatnessシンプル)',
+    gender: 'female',
+    vrmPath: '/vrm-models/f_0_17.temp1738768042_2.vrm',
+    thumbnailPath: '/vrm-models/thumbnails/f_0_17.png',
+    description: 'Fatnessブレンドシェイプ単体テストアバター（fatnessのみ）',
+    blendShapeNames: {
+      fatness: 'fatness'
+    }
+  },
+  // 最新のfatness VRMファイル
+  {
+    id: 'f_0_17_temp_fatness_latest',
+    name: '女性タイプA (Fatness最新版)',
+    gender: 'female',
+    vrmPath: '/vrm-models/f_0_17.temp1738768042.vrm',
+    thumbnailPath: '/vrm-models/thumbnails/f_0_17.png',
+    description: '最新のFatnessブレンドシェイプテストアバター',
+    blendShapeNames: {
+      fatness: 'fatness'
+    }
+  },
+  // Fatness V21テストファイル
+  {
+    id: 'f_0_17_temp_fatness_v21',
+    name: '女性タイプA (Fatness V21)',
+    gender: 'female',
+    vrmPath: '/vrm-models/f_0_17.temp1738768042_21.vrm',
+    thumbnailPath: '/vrm-models/thumbnails/f_0_17.png',
+    description: 'Fatness V21ブレンドシェイプテストアバター',
+    blendShapeNames: {
+      fatness: 'fatness'
+    }
   }
 ];
 
@@ -165,4 +226,24 @@ export const getAvatarById = (id: string): AvatarData | undefined => {
 
 export const getAvatarsByGender = (gender: 'male' | 'female'): AvatarData[] => {
   return AVATAR_LIST.filter(avatar => avatar.gender === gender);
+};
+
+// fatnessブレンドシェイプを持つアバターのみを取得
+export const getAvatarsWithFatness = (): AvatarData[] => {
+  return AVATAR_LIST.filter(avatar => 
+    avatar.blendShapeNames.fatness || 
+    avatar.blendShapeNames.fat ||
+    avatar.blendShapeNames.belly ||
+    avatar.blendShapeNames.weight
+  );
+};
+
+// 性別でフィルタしたfatnessブレンドシェイプ付きアバターを取得
+export const getAvatarsWithFatnessByGender = (gender: 'male' | 'female'): AvatarData[] => {
+  return getAvatarsWithFatness().filter(avatar => avatar.gender === gender);
+};
+
+// デフォルトアバター（fatnessテストキャラクター）
+export const getDefaultAvatar = (): AvatarData => {
+  return getAvatarById('f_0_17_temp_fatness_v21') || getAvatarById('f_0_17_temp_fatness_latest') || getAvatarById('f_0_17_temp_fatness_2') || getAvatarById('f_0_17_temp_fatness') || getAvatarById('f_0_17_fatness') || AVATAR_LIST[0];
 };

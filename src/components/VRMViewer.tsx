@@ -9,6 +9,8 @@ import { VRMAnalyzer } from '../utils/vrmAnalyzer';
 import { useMemoryLeakPrevention } from '../utils/memoryLeakPrevention';
 import { DynamicMeshDeformer } from '../utils/dynamicMeshDeformation';
 import BlendShapeController from './BlendShapeController';
+import PerformanceMonitor from './PerformanceMonitor';
+import PerformanceMiniWidget from './PerformanceMiniWidget';
 
 interface VRMViewerProps {
   currentBMI: number;
@@ -48,6 +50,7 @@ export default function VRMViewer({ currentBMI, futureBMI, avatarData }: VRMView
   const [detailedAnalysis, setDetailedAnalysis] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [loadingError, setLoadingError] = useState<string>('');
+  const [showPerformanceMonitor, setShowPerformanceMonitor] = useState(false);
 
   // VRMを読み込む関数（シンプル版）
   const loadVRM = async (vrmPath: string) => {
@@ -60,6 +63,7 @@ export default function VRMViewer({ currentBMI, futureBMI, avatarData }: VRMView
     setIsLoading(true);
     setLoadingError('');
     console.log('📦 VRM読み込み開始:', vrmPath);
+    console.log('📦 アバターデータ:', avatarData);
 
     try {
       const loader = new GLTFLoader();
@@ -76,6 +80,8 @@ export default function VRMViewer({ currentBMI, futureBMI, avatarData }: VRMView
 
       console.log('✅ VRM読み込み成功:', gltf);
       const vrm = gltf.userData.vrm;
+      console.log('✅ VRMオブジェクト:', vrm);
+      console.log('✅ VRMに期待されるfatnessブレンドシェイプ:', avatarData.blendShapeNames.fatness);
       
       let sceneToAdd = null;
       if (vrm && sceneRef.current) {
@@ -87,9 +93,42 @@ export default function VRMViewer({ currentBMI, futureBMI, avatarData }: VRMView
       }
       
       if (sceneToAdd && sceneRef.current) {
-        // 既存のVRMを削除
+        // 既存のVRMを完全に削除（メモリリーク対策）
         if (vrmRef.current && sceneRef.current) {
-          sceneRef.current.remove(vrmRef.current.scene);
+          console.log('🧹 既存VRMのクリーンアップ開始');
+          
+          // VRMの完全なdispose
+          if (vrmRef.current.scene) {
+            vrmRef.current.scene.traverse((object: any) => {
+              if (object.geometry) {
+                object.geometry.dispose();
+              }
+              if (object.material) {
+                if (Array.isArray(object.material)) {
+                  object.material.forEach((material: any) => {
+                    if (material.map) material.map.dispose();
+                    if (material.normalMap) material.normalMap.dispose();
+                    if (material.emissiveMap) material.emissiveMap.dispose();
+                    material.dispose();
+                  });
+                } else {
+                  if (object.material.map) object.material.map.dispose();
+                  if (object.material.normalMap) object.material.normalMap.dispose();
+                  if (object.material.emissiveMap) object.material.emissiveMap.dispose();
+                  object.material.dispose();
+                }
+              }
+            });
+            sceneRef.current.remove(vrmRef.current.scene);
+          }
+          
+          // VRM expressionManagerのクリーンアップ
+          if (vrmRef.current.expressionManager) {
+            vrmRef.current.expressionManager.destroy();
+          }
+          
+          vrmRef.current = null;
+          console.log('✅ VRMクリーンアップ完了');
         }
         
         // テストキューブを削除
@@ -176,7 +215,8 @@ export default function VRMViewer({ currentBMI, futureBMI, avatarData }: VRMView
           const isBodyRelated = lowerName.includes('belly') || lowerName.includes('fat') || 
                               lowerName.includes('weight') || lowerName.includes('body') ||
                               lowerName.includes('chest') || lowerName.includes('waist') ||
-                              lowerName.includes('hip') || lowerName.includes('muscle');
+                              lowerName.includes('hip') || lowerName.includes('muscle') ||
+                              lowerName.includes('fatness');
           
           if (isBodyRelated) {
             bodyBlendShapes++;
@@ -201,7 +241,8 @@ export default function VRMViewer({ currentBMI, futureBMI, avatarData }: VRMView
         return lowerName.includes('belly') || lowerName.includes('weight') || 
                lowerName.includes('fat') || lowerName.includes('body') ||
                lowerName.includes('chest') || lowerName.includes('waist') ||
-               lowerName.includes('hip') || lowerName.includes('muscle');
+               lowerName.includes('hip') || lowerName.includes('muscle') ||
+               lowerName.includes('fatness');
       });
       
       const detailedAnalysisResult = {
@@ -221,7 +262,8 @@ export default function VRMViewer({ currentBMI, futureBMI, avatarData }: VRMView
       const configuredShapes = [
         avatarData.blendShapeNames.belly,
         avatarData.blendShapeNames.weight,
-        avatarData.blendShapeNames.fat
+        avatarData.blendShapeNames.fat,
+        avatarData.blendShapeNames.fatness
       ].filter(Boolean);
       
       for (const shapeName of configuredShapes) {
@@ -281,8 +323,11 @@ export default function VRMViewer({ currentBMI, futureBMI, avatarData }: VRMView
     });
   };
 
-  // BMIに基づいて体型を更新する関数（動的メッシュ変形は無効化）
+  // BMIに基づいて体型を更新する関数（BlendShapeController専用モードのため無効化）
   const updateBodyShape = (bmiValue: number) => {
+    console.log('⚠️ BMI自動制御は一時的に無効化されています（BlendShapeController専用モード）- BMI:', bmiValue);
+    return;
+    
     if (!vrmRef.current || isCleanedUpRef.current) return;
     
     console.log('🔍 updateBodyShape実行開始 - BMI:', bmiValue, '（動的メッシュ変形は無効化）');
@@ -317,7 +362,8 @@ export default function VRMViewer({ currentBMI, futureBMI, avatarData }: VRMView
             return lowerName.includes('belly') || lowerName.includes('fat') || 
                    lowerName.includes('weight') || lowerName.includes('body') ||
                    lowerName.includes('chest') || lowerName.includes('waist') ||
-                   lowerName.includes('hip') || lowerName.includes('muscle');
+                   lowerName.includes('hip') || lowerName.includes('muscle') ||
+                   lowerName.includes('fatness');
           });
           
           if (potentialBodyBlendShapes.length > 0) {
@@ -382,7 +428,8 @@ export default function VRMViewer({ currentBMI, futureBMI, avatarData }: VRMView
         const configuredShapes = [
           avatarData.blendShapeNames.belly,
           avatarData.blendShapeNames.weight,
-          avatarData.blendShapeNames.fat
+          avatarData.blendShapeNames.fat,
+          avatarData.blendShapeNames.fatness
         ].filter(Boolean);
         
         for (const shapeName of configuredShapes) {
@@ -402,7 +449,8 @@ export default function VRMViewer({ currentBMI, futureBMI, avatarData }: VRMView
             return lowerName.includes('belly') || lowerName.includes('weight') || 
                    lowerName.includes('fat') || lowerName.includes('body') ||
                    lowerName.includes('chest') || lowerName.includes('waist') ||
-                   lowerName.includes('hip') || lowerName.includes('muscle');
+                   lowerName.includes('hip') || lowerName.includes('muscle') ||
+                   lowerName.includes('fatness');
           });
           
           if (bodyShapes.length > 0) {
@@ -599,12 +647,22 @@ export default function VRMViewer({ currentBMI, futureBMI, avatarData }: VRMView
     scene.add(testCube);
     testCubeRef.current = testCube;
 
-    // アニメーションループ（メモリリーク対策済み）
+    // アニメーションループ（30fps固定、メモリリーク対策済み）
     let frameCount = 0;
-    const animate = () => {
+    let lastTime = performance.now();
+    const targetFPS = 30;
+    const frameInterval = 1000 / targetFPS;
+    
+    const animate = (currentTime: number) => {
       if (isCleanedUpRef.current) return;
       
       memoryPrevention.safeRequestAnimationFrame(animate);
+      
+      // FPS制限: 30fps固定
+      if (currentTime - lastTime < frameInterval) {
+        return;
+      }
+      lastTime = currentTime;
       
       if (testCubeRef.current) {
         testCubeRef.current.rotation.x += 0.01;
@@ -612,17 +670,17 @@ export default function VRMViewer({ currentBMI, futureBMI, avatarData }: VRMView
       }
       
       if (vrmRef.current) {
-        vrmRef.current.update(0.016);
+        vrmRef.current.update(frameInterval / 1000); // 正確なデルタタイム
       }
       
       renderer.render(scene, camera);
       
       frameCount++;
       if (frameCount <= 5) {
-        console.log(`🎬 フレーム ${frameCount}: シーン内オブジェクト数=${scene.children.length}`);
+        console.log(`🎬 フレーム ${frameCount}: 30fps固定, シーン内オブジェクト数=${scene.children.length}`);
       }
     };
-    animate();
+    animate(performance.now());
 
     // リサイズ処理（メモリリーク対策済み）
     const handleResize = () => {
@@ -651,10 +709,43 @@ export default function VRMViewer({ currentBMI, futureBMI, avatarData }: VRMView
         meshDeformerRef.current = null;
       }
       
-      // VRMのクリーンアップ
+      // VRMの完全なクリーンアップ（メモリリーク対策）
       if (vrmRef.current && sceneRef.current) {
+        console.log('🧹 コンポーネントアンマウント時のVRMクリーンアップ開始');
+        
+        // VRMの完全なdispose
+        if (vrmRef.current.scene) {
+          vrmRef.current.scene.traverse((object: any) => {
+            if (object.geometry) {
+              object.geometry.dispose();
+              console.log('🗑️ Geometry disposed:', object.name || 'unnamed');
+            }
+            if (object.material) {
+              if (Array.isArray(object.material)) {
+                object.material.forEach((mat: any) => {
+                  if (mat.map) mat.map.dispose();
+                  if (mat.normalMap) mat.normalMap.dispose();
+                  if (mat.emissiveMap) mat.emissiveMap.dispose();
+                  if (mat.roughnessMap) mat.roughnessMap.dispose();
+                  if (mat.metalnessMap) mat.metalnessMap.dispose();
+                  mat.dispose();
+                });
+              } else {
+                if (object.material.map) object.material.map.dispose();
+                if (object.material.normalMap) object.material.normalMap.dispose();
+                if (object.material.emissiveMap) object.material.emissiveMap.dispose();
+                if (object.material.roughnessMap) object.material.roughnessMap.dispose();
+                if (object.material.metalnessMap) object.material.metalnessMap.dispose();
+                object.material.dispose();
+              }
+              console.log('🗑️ Material disposed:', object.name || 'unnamed');
+            }
+          });
+        }
+        
         sceneRef.current.remove(vrmRef.current.scene);
         vrmRef.current = null;
+        console.log('✅ VRMクリーンアップ完了');
       }
       
       // テストキューブのクリーンアップ
@@ -754,6 +845,15 @@ export default function VRMViewer({ currentBMI, futureBMI, avatarData }: VRMView
                 className="rounded"
               />
               <span className="text-sm text-gray-600">ブレンドシェイプ制御パネル</span>
+            </label>
+            <label className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                checked={showPerformanceMonitor}
+                onChange={(e) => setShowPerformanceMonitor(e.target.checked)}
+                className="rounded"
+              />
+              <span className="text-sm text-gray-600">パフォーマンス監視</span>
             </label>
           </div>
         </div>
@@ -1038,6 +1138,13 @@ export default function VRMViewer({ currentBMI, futureBMI, avatarData }: VRMView
                 onBlendShapeChange={(name, value) => {
                   console.log(`🎭 ブレンドシェイプ変更: ${name} = ${value}`);
                   setCurrentBlendShape(`${name}: ${(value * 100).toFixed(0)}%`);
+                  
+                  // ダミーfatnessの場合、動的変形システムで処理
+                  if (name === 'fatness-dynamic') {
+                    const bmiValue = 18.5 + (value * 16.5); // 0-1 を BMI 18.5-35 に変換
+                    console.log(`🧪 ダミーfatness -> 動的変形: ${value} -> BMI${bmiValue.toFixed(1)}`);
+                    applyDynamicMeshDeformation(bmiValue);
+                  }
                 }}
               />
             </div>
@@ -1064,6 +1171,19 @@ export default function VRMViewer({ currentBMI, futureBMI, avatarData }: VRMView
           </div>
 
         </>
+      )}
+
+      {/* パフォーマンス監視 */}
+      {showPerformanceMonitor ? (
+        <PerformanceMonitor
+          renderer={rendererRef.current}
+          isVisible={showPerformanceMonitor}
+          onToggle={() => setShowPerformanceMonitor(!showPerformanceMonitor)}
+        />
+      ) : (
+        <PerformanceMiniWidget
+          onOpenFull={() => setShowPerformanceMonitor(true)}
+        />
       )}
       </div>
     </div>
