@@ -2,7 +2,7 @@
 
 import { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { AVATAR_LIST, AvatarData, getAvatarById } from '../../utils/avatarConfig';
+import { AVATAR_LIST, AvatarData, getAvatarById, getAvatarsWithFatness, getAvatarsWithFatnessByGender, getDefaultAvatar } from '../../utils/avatarConfig';
 import ThumbnailManager from '../../components/ThumbnailManager';
 
 function AvatarSelectContent() {
@@ -11,14 +11,16 @@ function AvatarSelectContent() {
   const currentAvatarId = searchParams.get('current');
   
   const [selectedAvatar, setSelectedAvatar] = useState<AvatarData | null>(
-    currentAvatarId ? getAvatarById(currentAvatarId) || AVATAR_LIST[0] : AVATAR_LIST[0]
+    currentAvatarId ? getAvatarById(currentAvatarId) || getDefaultAvatar() : getDefaultAvatar()
   );
   const [genderFilter, setGenderFilter] = useState<'all' | 'male' | 'female'>('all');
   const [showThumbnailManager, setShowThumbnailManager] = useState(false);
 
+  // fatnessブレンドシェイプ付きアバターのみ表示
+  const fatnessAvatars = getAvatarsWithFatness();
   const filteredAvatars = genderFilter === 'all' 
-    ? AVATAR_LIST 
-    : AVATAR_LIST.filter(avatar => avatar.gender === genderFilter);
+    ? fatnessAvatars 
+    : getAvatarsWithFatnessByGender(genderFilter);
 
   // デバッグログ
   console.log('🎮 アバター選択画面 状態:', {
@@ -100,7 +102,7 @@ function AvatarSelectContent() {
                   : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
               }`}
             >
-              すべて (12体)
+              すべて ({fatnessAvatars.length}体)
             </button>
             <button
               onClick={() => setGenderFilter('male')}
@@ -110,7 +112,7 @@ function AvatarSelectContent() {
                   : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
               }`}
             >
-              男性 (3体)
+              男性 ({getAvatarsWithFatnessByGender('male').length}体)
             </button>
             <button
               onClick={() => setGenderFilter('female')}
@@ -120,7 +122,7 @@ function AvatarSelectContent() {
                   : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
               }`}
             >
-              女性 (9体)
+              女性 ({getAvatarsWithFatnessByGender('female').length}体)
             </button>
           </div>
 

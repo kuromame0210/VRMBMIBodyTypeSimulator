@@ -1,5 +1,7 @@
 export const calculateBMI = (weight: number, height: number): number => {
-  return (weight * 10000) / (height * height);
+  // 一般的なBMI計算式: BMI = 体重(kg) ÷ (身長(m))²
+  const heightInMeters = height / 100; // cmをmに変換
+  return weight / (heightInMeters * heightInMeters);
 };
 
 export const calculateBMR = (weight: number, height: number, age: number, gender: 'male' | 'female'): number => {

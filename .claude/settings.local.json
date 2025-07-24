@@ -9,7 +9,11 @@
       "Bash(find:*)",
       "Bash(rm:*)",
       "Bash(ls:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(node:*)",
+      "Bash(npm run typecheck:*)",
+      "Bash(npm run build:*)",
+      "Bash(git commit:*)"
     ],
     "deny": []
   }

@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
-import { AVATAR_LIST, AvatarData, getAvatarById } from '../utils/avatarConfig';
+import { AVATAR_LIST, AvatarData, getAvatarById, getDefaultAvatar } from '../utils/avatarConfig';
 import BMICalculator from '../components/BMICalculator';
 import WelcomeScreen from '../components/WelcomeScreen';
 import { ErrorBoundary } from '../components/ErrorBoundary';
@@ -37,7 +37,7 @@ function HomeContent() {
         console.log('❌ 初期アバターが見つかりません、デフォルトを使用');
       }
     }
-    return AVATAR_LIST[0];
+    return getDefaultAvatar();
   });
   const [userData, setUserData] = useState({
     height: 170,
@@ -48,6 +48,7 @@ function HomeContent() {
   });
   const [currentBMI, setCurrentBMI] = useState(0);
   const [futureBMI, setFutureBMI] = useState<Array<{ period: number; weight: number; bmi: number }>>([]);
+  const [isAnimating, setIsAnimating] = useState(false);
 
   const handleOpenAvatarSelect = () => {
     router.push(`/avatar-select?current=${selectedAvatar.id}`);
@@ -69,6 +70,17 @@ function HomeContent() {
     excessCalories: string;
   }) => {
     setUserData(newUserData);
+  };
+
+  const handleAnimationStateChange = (animating: boolean) => {
+    setIsAnimating(animating);
+    // アニメーション停止時はリセット
+    if (!animating) {
+      // 少し遅延してリセット（アニメーション完了を待つ）
+      setTimeout(() => {
+        setIsAnimating(false);
+      }, 500);
+    }
   };
 
 
@@ -117,6 +129,7 @@ function HomeContent() {
               onBMIChange={handleBMIChange}
               onFutureBMIChange={handleFutureBMIChange}
               onUserDataChange={handleUserDataChange}
+              onAnimationStateChange={handleAnimationStateChange}
             />
           </div>
           
@@ -130,6 +143,8 @@ function HomeContent() {
                   futureBMI={futureBMI}
                   avatarData={selectedAvatar}
                   userData={userData}
+                  onBMIChange={handleBMIChange}
+                  isAnimating={isAnimating}
                 />
               </ErrorBoundary>
             </div>

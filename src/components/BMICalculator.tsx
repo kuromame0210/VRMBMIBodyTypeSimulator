@@ -13,9 +13,10 @@ interface BMICalculatorProps {
     gender: 'male' | 'female';
     excessCalories: string;
   }) => void;
+  onAnimationStateChange?: (isAnimating: boolean) => void;
 }
 
-export default function BMICalculator({ onBMIChange, onFutureBMIChange, onUserDataChange }: BMICalculatorProps) {
+export default function BMICalculator({ onBMIChange, onFutureBMIChange, onUserDataChange, onAnimationStateChange }: BMICalculatorProps) {
   const [userData, setUserData] = useState({
     height: 170,
     weight: 60,
@@ -55,6 +56,11 @@ export default function BMICalculator({ onBMIChange, onFutureBMIChange, onUserDa
       setFuturePredictions(predictions);
       if (onFutureBMIChange) {
         onFutureBMIChange(predictions);
+      }
+      
+      // アニメーション開始をVRMViewerに通知
+      if (onAnimationStateChange) {
+        onAnimationStateChange(true);
       }
     } catch (error) {
       console.error('未来予測計算エラー:', error);
@@ -253,7 +259,7 @@ export default function BMICalculator({ onBMIChange, onFutureBMIChange, onUserDa
               <div className="flex gap-2">
                 <span className="text-gray-600">余剰kcal</span>
                 <span className="bg-gray-100 px-2 py-1 rounded text-xs">
-                  {(prediction.weight - userData.weight).toFixed(1)}kg
+                  {(getExcessCaloriesValue(userData.excessCalories) * prediction.period).toLocaleString()}kcal
                 </span>
               </div>
             </div>
