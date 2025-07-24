@@ -23,9 +23,11 @@ interface VRMViewerProps {
     gender: 'male' | 'female';
     excessCalories: string;
   };
+  onBMIChange?: (bmi: number) => void;
+  isAnimating?: boolean;
 }
 
-export default function VRMViewer({ currentBMI, futureBMI, avatarData }: VRMViewerProps) {
+export default function VRMViewer({ currentBMI, futureBMI, avatarData, userData, onBMIChange, isAnimating }: VRMViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const modalContainerRef = useRef<HTMLDivElement>(null);
   const initRef = useRef(false);
@@ -782,6 +784,156 @@ export default function VRMViewer({ currentBMI, futureBMI, avatarData }: VRMView
     }
   }, [avatarData]);
 
+  // 未来予測アニメーション状態
+  const [animationFrame, setAnimationFrame] = useState<{
+    period: string;
+    bmi: number;
+    weight: number;
+    accumulatedKcal: number;
+  } | null>(null);
+  const [isAnimationActive, setIsAnimationActive] = useState(false);
+  const animationIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const fatnessAnimationRef = useRef<number>(0);
+
+  // 未来予測アニメーション開始
+  useEffect(() => {
+    if (isAnimating && futureBMI.length > 0 && !isAnimationActive) {
+      console.log('🎬 未来予測アニメーション開始');
+      setIsAnimationActive(true);
+      
+      const periods = [
+        { days: 30, label: '1ヶ月後' },
+        { days: 365, label: '1年後' },
+        { days: 1095, label: '3年後' },
+        { days: 1825, label: '5年後' },
+        { days: 3650, label: '10年後' }
+      ];
+      
+      let frameIndex = 0;
+      
+      const runAnimation = () => {
+        if (frameIndex < periods.length && frameIndex < futureBMI.length) {
+          const prediction = futureBMI[frameIndex];
+          const period = periods[frameIndex];
+          
+          const frameData = {
+            period: period.label,
+            bmi: prediction.bmi,
+            weight: prediction.weight,
+            accumulatedKcal: (getExcessCaloriesValue(userData.excessCalories) || 0) * period.days
+          };
+          
+          setAnimationFrame(frameData);
+          
+          // 期間に応じたお腹の膨らみ度合いを段階的に設定
+          let targetFatnessValue = 0;
+          if (period.days === 30) {
+            // 1ヶ月後: 20%
+            targetFatnessValue = 0.2;
+          } else if (period.days === 365) {
+            // 1年後: 40%
+            targetFatnessValue = 0.4;
+          } else if (period.days === 1095) {
+            // 3年後: 60%
+            targetFatnessValue = 0.6;
+          } else if (period.days === 1825) {
+            // 5年後: 80%
+            targetFatnessValue = 0.8;
+          } else if (period.days === 3650) {
+            // 10年後: 100%
+            targetFatnessValue = 1.0;
+          }
+          
+          // スムーズなfatnessアニメーション
+          animateFatnessSmooth(targetFatnessValue);
+          
+          frameIndex++;
+        } else {
+          // アニメーション完了
+          console.log('🎬 未来予測アニメーション完了');
+          setIsAnimationActive(false);
+          if (animationIntervalRef.current) {
+            clearInterval(animationIntervalRef.current);
+            animationIntervalRef.current = null;
+          }
+        }
+      };
+      
+      // 初回実行
+      runAnimation();
+      
+      // 3秒間隔で実行
+      animationIntervalRef.current = setInterval(runAnimation, 3000);
+    }
+  }, [isAnimating, futureBMI, isAnimationActive]);
+
+  // スムーズなfatnessアニメーション関数
+  const animateFatnessSmooth = (targetValue: number) => {
+    const startValue = fatnessAnimationRef.current;
+    const startTime = Date.now();
+    // リセット時（0に戻る時）は高速に、膨らませる時は通常速度
+    const duration = targetValue === 0 ? 500 : 2500; // リセット時は0.5秒、通常時は2.5秒
+    
+    const animate = () => {
+      const elapsed = Date.now() - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      
+      // イージング関数（滑らかな変化）
+      const easeInOut = progress < 0.5 
+        ? 2 * progress * progress 
+        : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+      
+      const currentValue = startValue + (targetValue - startValue) * easeInOut;
+      fatnessAnimationRef.current = currentValue;
+      
+      // VRMのfatnessブレンドシェイプを更新
+      if (vrmRef.current && vrmRef.current.scene) {
+        vrmRef.current.scene.traverse((object: any) => {
+          if (object.isSkinnedMesh && object.morphTargetDictionary) {
+            if (object.morphTargetDictionary['fatness'] !== undefined) {
+              const morphIndex = object.morphTargetDictionary['fatness'];
+              if (object.morphTargetInfluences && morphIndex < object.morphTargetInfluences.length) {
+                object.morphTargetInfluences[morphIndex] = currentValue;
+              }
+            }
+          }
+        });
+      }
+      
+      if (progress < 1) {
+        requestAnimationFrame(animate);
+      } else {
+        console.log(`🎭 fatness滑らか更新完了: ${targetValue}`);
+      }
+    };
+    
+    animate();
+  };
+
+  // アニメーション停止時のクリーンアップ（自動リセットを無効化）
+  useEffect(() => {
+    if (!isAnimating && isAnimationActive) {
+      console.log('🎬 アニメーション停止');
+      setIsAnimationActive(false);
+      
+      if (animationIntervalRef.current) {
+        clearInterval(animationIntervalRef.current);
+        animationIntervalRef.current = null;
+      }
+      
+      // 自動リセットを削除 - ユーザーが「元に戻る」ボタンを押すまでリセットしない
+    }
+  }, [isAnimating]);
+
+  function getExcessCaloriesValue(option: string): number {
+    switch (option) {
+      case '少ない': return -100;
+      case '普通': return 0;
+      case '多い': return 100;
+      default: return 0;
+    }
+  }
+
   // BMIが変更されたら体型を更新（動的変形無効化のため一時的に無効）
   // useEffect(() => {
   //   if (currentBMI > 0 && !useManualAdjustment && !isCleanedUpRef.current) {
@@ -809,9 +961,15 @@ export default function VRMViewer({ currentBMI, futureBMI, avatarData }: VRMView
   return (
     <div className="w-full space-y-4">
       {/* アバター情報ヘッダー */}
-      <div className="flex justify-between items-center">
+      <div className={`flex justify-between items-center p-3 rounded-lg transition-all duration-500 ${
+        animationFrame 
+          ? 'bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200' 
+          : 'bg-transparent'
+      }`}>
         <div className="flex items-center space-x-3">
-          <div className="w-12 h-12 bg-gray-100 rounded-lg overflow-hidden">
+          <div className={`w-12 h-12 bg-gray-100 rounded-lg overflow-hidden transition-all duration-500 ${
+            animationFrame ? 'ring-2 ring-purple-300 shadow-lg' : ''
+          }`}>
             <img
               src={avatarData.thumbnailPath}
               alt={avatarData.name}
@@ -822,42 +980,44 @@ export default function VRMViewer({ currentBMI, futureBMI, avatarData }: VRMView
             />
           </div>
           <div>
-            <h3 className="font-semibold text-gray-800">{avatarData.name}</h3>
-            <p className="text-sm text-gray-600">{avatarData.description}</p>
+            <h3 className="font-semibold text-gray-800 flex items-center gap-2">
+              {animationFrame ? `${avatarData.name} (${animationFrame.period})` : avatarData.name}
+              {animationFrame && (
+                <span className="flex items-center gap-1">
+                  <div className="animate-pulse w-2 h-2 bg-purple-500 rounded-full"></div>
+                  <span className="text-xs text-purple-600 font-medium">予測中</span>
+                </span>
+              )}
+            </h3>
+            <p className="text-sm text-gray-600">
+              {animationFrame 
+                ? `予測体重: ${animationFrame.weight.toFixed(1)}kg (現在: ${userData.weight}kg)`
+                : avatarData.description
+              }
+            </p>
           </div>
         </div>
         <div className="text-right">
-          <p className="text-sm text-gray-500">現在のBMI</p>
-          <p className="text-lg font-bold text-blue-600">{currentBMI.toFixed(1)}</p>
+          <p className="text-sm text-gray-500">
+            {animationFrame ? `${animationFrame.period}のBMI` : '現在のBMI'}
+          </p>
+          <p className={`text-lg font-bold transition-all duration-500 ${
+            animationFrame ? 'text-purple-600 scale-110' : 'text-blue-600 scale-100'
+          }`}>
+            {animationFrame ? animationFrame.bmi.toFixed(1) : currentBMI.toFixed(1)}
+            {animationFrame && (
+              <span className="ml-1 text-xs text-purple-400 animate-bounce">↗️</span>
+            )}
+          </p>
+          {animationFrame && (
+            <p className="text-xs text-gray-400 mt-1">
+              元のBMI: {currentBMI.toFixed(1)}
+            </p>
+          )}
         </div>
       </div>
+
       
-      {/* ブレンドシェイプ制御 */}
-      <div className="bg-gray-50 rounded-lg p-4 space-y-3">
-        <div className="flex items-center justify-between">
-          <h4 className="font-medium text-gray-700">ブレンドシェイプ制御</h4>
-          <div className="flex items-center space-x-4">
-            <label className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                checked={showDebugInfo}
-                onChange={(e) => setShowDebugInfo(e.target.checked)}
-                className="rounded"
-              />
-              <span className="text-sm text-gray-600">ブレンドシェイプ制御パネル</span>
-            </label>
-            <label className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                checked={showPerformanceMonitor}
-                onChange={(e) => setShowPerformanceMonitor(e.target.checked)}
-                className="rounded"
-              />
-              <span className="text-sm text-gray-600">パフォーマンス監視</span>
-            </label>
-          </div>
-        </div>
-      </div>
 
       {/* お腹周りの手動調整コントロール（機能していないため非表示） */}
       {/* <div className="bg-gray-50 rounded-lg p-4 space-y-3">
@@ -1100,21 +1260,12 @@ export default function VRMViewer({ currentBMI, futureBMI, avatarData }: VRMView
           style={{ height: '800px', backgroundColor: '#f0f0f0' }}
         />
         
-        {futureBMI.length > 0 && !useManualAdjustment && (
+        {animationFrame && (
           <div className="absolute top-3 left-3 bg-black bg-opacity-70 text-white px-3 py-2 rounded-lg text-sm">
-            {futureBMI[currentPredictionIndex] && (
-              <div>
-                <p className="font-semibold">
-                  {futureBMI[currentPredictionIndex].period === 30 ? '1ヶ月後' : 
-                   futureBMI[currentPredictionIndex].period === 365 ? '1年後' :
-                   futureBMI[currentPredictionIndex].period === 1095 ? '3年後' :
-                   futureBMI[currentPredictionIndex].period === 1825 ? '5年後' :
-                   futureBMI[currentPredictionIndex].period === 3650 ? '10年後' : 
-                   `${futureBMI[currentPredictionIndex].period}日後`}
-                </p>
-                <p className="text-yellow-300">BMI: {futureBMI[currentPredictionIndex].bmi.toFixed(1)}</p>
-              </div>
-            )}
+            <div>
+              <p className="font-semibold">{animationFrame.period}</p>
+              <p className="text-yellow-300">BMI: {animationFrame.bmi.toFixed(1)}</p>
+            </div>
           </div>
         )}
         
