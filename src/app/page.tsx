@@ -9,13 +9,15 @@ import WelcomeScreen from '../components/WelcomeScreen';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { calculateBMI } from '../utils/calculations';
 
-const VRMViewer = dynamic(() => import('../components/VRMViewer'), {
+
+// VRMViewer
+const SimpleVRMViewer = dynamic(() => import('../components/SimpleVRMViewer'), {
   ssr: false,
   loading: () => (
     <div className="w-full h-full flex items-center justify-center bg-gray-900 rounded-lg">
       <div className="text-white text-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mb-4 mx-auto"></div>
-        <p>🎛️ 改良版VRMビューアーを読み込み中...</p>
+        <p>🚀 VRMビューアーを読み込み中...</p>
       </div>
     </div>
   )
@@ -138,13 +140,9 @@ function HomeContent() {
             {/* 右上: アバター表示 */}
             <div className="bg-white rounded-lg shadow-lg p-4 flex-1">
               <ErrorBoundary>
-                <VRMViewer 
+                <SimpleVRMViewer 
                   currentBMI={currentBMI}
-                  futureBMI={futureBMI}
                   avatarData={selectedAvatar}
-                  userData={userData}
-                  onBMIChange={handleBMIChange}
-                  isAnimating={isAnimating}
                 />
               </ErrorBoundary>
             </div>
