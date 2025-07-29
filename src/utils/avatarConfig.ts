@@ -217,6 +217,18 @@ export const AVATAR_LIST: AvatarData[] = [
     blendShapeNames: {
       fatness: 'fatness'
     }
+  },
+  // 新しいGLBファイル（アニメーション対応）
+  {
+    id: 'f_0_17_glb_anim',
+    name: '女性タイプA (GLB + アニメーション)',
+    gender: 'female',
+    vrmPath: '/vrm-models/f_0_17.20250729.glb',
+    thumbnailPath: '/vrm-models/thumbnails/f_0_17.png',
+    description: 'GLB形式 + Mixamoアニメーション対応アバター（fatnessブレンドシェイプ付き）',
+    blendShapeNames: {
+      fatness: 'fatness'
+    }
   }
 ];
 
@@ -245,5 +257,5 @@ export const getAvatarsWithFatnessByGender = (gender: 'male' | 'female'): Avatar
 
 // デフォルトアバター（fatnessテストキャラクター）
 export const getDefaultAvatar = (): AvatarData => {
-  return getAvatarById('f_0_17_temp_fatness_v21') || getAvatarById('f_0_17_temp_fatness_latest') || getAvatarById('f_0_17_temp_fatness_2') || getAvatarById('f_0_17_temp_fatness') || getAvatarById('f_0_17_fatness') || AVATAR_LIST[0];
+  return getAvatarById('f_0_17_glb_anim') || getAvatarById('f_0_17_temp_fatness_v21') || getAvatarById('f_0_17_temp_fatness_latest') || getAvatarById('f_0_17_temp_fatness_2') || getAvatarById('f_0_17_temp_fatness') || getAvatarById('f_0_17_fatness') || AVATAR_LIST[0];
 };
