@@ -1,30 +1,68 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 import { VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
 import { createVRMAnimationClip, VRMAnimationLoaderPlugin } from '@pixiv/three-vrm-animation';
 import { AvatarData } from '../utils/avatarConfig';
+import { calculateBMI } from '../utils/calculations';
 
 interface SimpleVRMViewerProps {
   avatarData: AvatarData;
   currentBMI: number;
   dailySurplusCalories?: number;
+  age?: number;
+  height?: number;
+  onSimulationStateChange?: (isRunning: boolean) => void;
+  startSimulation?: boolean;
+  stopSimulation?: boolean;
 }
 
-export default function SimpleVRMViewer({ avatarData, currentBMI, dailySurplusCalories = 0 }: SimpleVRMViewerProps) {
+export default function SimpleVRMViewer({ 
+  avatarData, 
+  currentBMI, 
+  dailySurplusCalories = 0, 
+  age = 25, 
+  height = 170,
+  onSimulationStateChange,
+  startSimulation = false,
+  stopSimulation = false
+}: SimpleVRMViewerProps) {
+  // 🚨 コンポーネント再初期化検出（重要なデバッグポイント）
+  const [componentInitCount, setComponentInitCount] = useState(0);
+  
+  useEffect(() => {
+    setComponentInitCount(prev => {
+      const newCount = prev + 1;
+      if (newCount > 1) {
+        // console.log(`🚨 異常な再初期化検出 #${newCount}: ${avatarData.name} (シミュレーション中: ${autoSimulation})`);
+      } else {
+        // console.log(`🎯 初回初期化: ${avatarData.name}, BMI: ${currentBMI.toFixed(1)}`);
+      }
+      return newCount;
+    });
+  }, [avatarData.vrmPath]); // vrmPathが変わった時のみ正常
+
   const containerRef = useRef<HTMLDivElement>(null);
   const vrmRef = useRef<any>(null);
   const [animationStatus, setAnimationStatus] = useState<string>('ロード中...');
-  const [debugMode, setDebugMode] = useState<boolean>(false);
-  const [manualFatness, setManualFatness] = useState<number>(5);
-  const [currentFatnessValue, setCurrentFatnessValue] = useState<number>(0.5);
-  const [predictionMode, setPredictionMode] = useState<boolean>(false);
-  const [autoSimulation, setAutoSimulation] = useState<boolean>(false);
+  const [currentFatnessValue, setCurrentFatnessValue] = useState<number>(0.4); // レベル4（0.4）で初期化
+  const [autoSimulation, setAutoSimulation] = useState<boolean>(false); // 外部制御に変更
   const [simulationMonth, setSimulationMonth] = useState<number>(0);
   const animationFrameRef = useRef<number | null>(null);
   const simulationTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const isExplicitReset = useRef<boolean>(false); // 明示的リセット中フラグ
+  const animateToTargetFatnessRef = useRef<((targetValue: number, source: string) => void) | null>(null);
+
+  // シミュレーション状態変更ログ
+  useEffect(() => {
+    // if (autoSimulation) console.log('🚀 シミュレーション開始');
+    // else console.log('⏹️ シミュレーション停止');
+  }, [autoSimulation]);
+
+  // VRM読み込み状態を管理
+  const [vrmLoaded, setVrmLoaded] = useState<boolean>(false);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -74,12 +112,9 @@ export default function SimpleVRMViewer({ avatarData, currentBMI, dailySurplusCa
           tryInitVRMA(gltf);
         },
         // プログレス時に呼ばれる
-        (progress) => console.log(
-          "Loading model...", 
-          100.0 * (progress.loaded / progress.total), "%" 
-        ),
+        (progress) => {},
         // エラー時に呼ばれる
-        (error) => console.error(error)
+        (error) => {/* エラーログ無効化 */}
       );
     }
 
@@ -89,30 +124,38 @@ export default function SimpleVRMViewer({ avatarData, currentBMI, dailySurplusCa
       if (vrm == null) {
         // VRMでない場合も通常のGLTFとして読み込んでみる
         if (gltf.scene) {
-          console.log('🔍 VRM拡張なし、通常GLTFとして処理');
+          // console.log('✅ GLTF読み込み完了');
           currentVrm = { scene: gltf.scene, userData: gltf };
           vrmRef.current = currentVrm;
+          setVrmLoaded(true);
           scene.add(gltf.scene);
           
-          // BMI連携: fatnessブレンドシェイプを更新
-          updateFatnessForBMI(currentVrm, currentBMI);
+          // シミュレーション中は現在の値を保持、そうでなければ初期値を適用
+          const targetFatness = autoSimulation ? currentFatnessValue : 0.4;
+          updateFatnessBlendShape(targetFatness, `VRM読み込み完了: ${autoSimulation ? 'シミュレーション値保持' : '初期値レベル4'}`);
+          if (!autoSimulation) {
+            setCurrentFatnessValue(0.4);
+          }
           
-          // 標準glTFアニメーションを確認
           tryInitGLTFAnimations(gltf);
-          
           setAnimationStatus('GLTFファイル読み込み完了');
         }
         return;
       }
       currentVrm = vrm;
-      vrmRef.current = vrm; // Refに保存
+      vrmRef.current = vrm;
+      // console.log('✅ VRM読み込み完了');
+      setVrmLoaded(true);
       scene.add(vrm.scene);
       
-      // VRM向き補正（重要！）
       VRMUtils.rotateVRM0(vrm);
       
-      // BMI連携: fatnessブレンドシェイプを更新
-      updateFatnessForBMI(vrm, currentBMI);
+      // シミュレーション中は現在の値を保持、そうでなければ初期値を適用
+      const targetFatness = autoSimulation ? currentFatnessValue : 0.4;
+      updateFatnessBlendShape(targetFatness, `VRM読み込み完了: ${autoSimulation ? 'シミュレーション値保持' : '初期値レベル4'}`);
+      if (!autoSimulation) {
+        setCurrentFatnessValue(0.4);
+      }
       
       initAnimationClip();
       setAnimationStatus('VRM読み込み完了');
@@ -121,37 +164,25 @@ export default function SimpleVRMViewer({ avatarData, currentBMI, dailySurplusCa
     // 標準glTFアニメーションの読み込み
     function tryInitGLTFAnimations(gltf: any) {
       if (gltf.animations && gltf.animations.length > 0) {
-        console.log('🎬 標準glTFアニメーション発見:', gltf.animations.length + '個');
-        gltf.animations.forEach((anim: any, index: number) => {
-          console.log(`  Animation ${index}: "${anim.name}" (${anim.tracks?.length || 0} tracks)`);
-        });
-        
-        // 最初のアニメーションを使用
         const firstAnimation = gltf.animations[0];
         if (firstAnimation) {
           try {
             currentMixer = new THREE.AnimationMixer(gltf.scene);
             const action = currentMixer.clipAction(firstAnimation);
             
-            // アニメーション設定
             action.reset();
             action.setLoop(THREE.LoopRepeat, Infinity);
             action.clampWhenFinished = false;
             action.enabled = true;
             action.play();
             
-            console.log('✅ 標準glTFアニメーション開始成功');
-            console.log(`  - アニメーション名: "${firstAnimation.name}"`);
-            console.log(`  - 長さ: ${firstAnimation.duration.toFixed(1)}秒`);
-            setAnimationStatus(`GLTFアニメーション再生中: ${firstAnimation.name} (${firstAnimation.duration.toFixed(1)}秒)`);
+            // console.log(`✅ アニメーション開始`);
+            setAnimationStatus(`アニメーション再生中`);
           } catch (error) {
-            console.error('❌ 標準glTFアニメーション初期化エラー:', error);
-            setAnimationStatus('GLTFアニメーション初期化失敗');
+            // console.error('❌ GLTFアニメーション初期化エラー:', error);
+            setAnimationStatus('アニメーション初期化失敗');
           }
         }
-      } else {
-        console.log('⚠️ 標準glTFアニメーションが見つかりません');
-        setAnimationStatus('アニメーションなし');
       }
     }
 
@@ -159,12 +190,10 @@ export default function SimpleVRMViewer({ avatarData, currentBMI, dailySurplusCa
     function tryInitVRMA(gltf: any) {
       const vrmAnimations = gltf.userData.vrmAnimations;
       if (vrmAnimations == null) {
-        console.log('⚠️ VRMAアニメーションが見つかりません');
-        setAnimationStatus('アニメーションなし');
         return;
       }
       currentVrmAnimation = vrmAnimations[0] ?? null;
-      console.log('✅ VRMAアニメーション読み込み完了:', vrmAnimations.length + '個');
+      // console.log('✅ VRMA読み込み完了');
       setAnimationStatus('アニメーション読み込み完了');
       initAnimationClip();
     }
@@ -172,16 +201,9 @@ export default function SimpleVRMViewer({ avatarData, currentBMI, dailySurplusCa
     // アニメーションクリップの初期化
     function initAnimationClip() {
       if (currentVrm && currentVrmAnimation) {
-        console.log('🎬 アニメーション初期化開始');
-        console.log('  - VRM:', !!currentVrm);
-        console.log('  - VRMAnimation:', !!currentVrmAnimation);
-        console.log('  - VRMメタ存在:', !!(currentVrm.meta || currentVrm.userData?.vrm?.meta));
-        
-        // VRMメタデータが存在するかチェック
         const hasVRMMeta = !!(currentVrm.meta || currentVrm.userData?.vrm?.meta);
         
         if (!hasVRMMeta) {
-          console.log('⚠️ VRMメタデータなし、VRMアニメーションはスキップ');
           setAnimationStatus('VRMアニメーション未対応（GLBファイル）');
           return;
         }
@@ -192,26 +214,18 @@ export default function SimpleVRMViewer({ avatarData, currentBMI, dailySurplusCa
           const clip = createVRMAnimationClip(currentVrmAnimation, currentVrm);
           const action = currentMixer.clipAction(clip);
           
-          // アニメーション設定を調整
           action.reset();
           action.setLoop(THREE.LoopRepeat, Infinity);
           action.clampWhenFinished = false;
           action.enabled = true;
           action.play();
           
-          console.log('✅ VRMアニメーション開始成功');
-          console.log('  - クリップ長:', clip.duration + '秒');
-          console.log('  - アクション状態:', action.enabled);
-          setAnimationStatus(`アニメーション再生中 (${clip.duration.toFixed(1)}秒)`);
+          // console.log(`✅ VRMアニメーション開始`);
+          setAnimationStatus(`アニメーション再生中`);
         } catch (error) {
-          console.error('❌ アニメーション初期化エラー:', error);
+          // console.error('❌ アニメーション初期化エラー:', error);
           setAnimationStatus('アニメーション初期化失敗');
         }
-      } else {
-        console.log('⚠️ アニメーション初期化待機中:', {
-          hasVrm: !!currentVrm,
-          hasAnimation: !!currentVrmAnimation
-        });
       }
     }
 
@@ -227,8 +241,6 @@ export default function SimpleVRMViewer({ avatarData, currentBMI, dailySurplusCa
         fatnessValue = Math.min(1.0, (bmi - 22) / 8); // 肥満型
       }
 
-      console.log(`🎯 BMI ${bmi} → Fatness ${fatnessValue.toFixed(2)}`);
-
       // VRMオブジェクトの場合とGLTFオブジェクトの場合で処理を分岐
       const scene = vrm.scene || vrm.userData?.scene || vrm;
       
@@ -243,7 +255,6 @@ export default function SimpleVRMViewer({ avatarData, currentBMI, dailySurplusCa
                 const index = object.morphTargetDictionary[name];
                 if (object.morphTargetInfluences) {
                   object.morphTargetInfluences[index] = fatnessValue;
-                  console.log(`✅ ${name}ブレンドシェイプ更新: ${fatnessValue}`);
                   break;
                 }
               }
@@ -289,13 +300,13 @@ export default function SimpleVRMViewer({ avatarData, currentBMI, dailySurplusCa
 
     // BMI変更時の更新
     const handleBMIChange = () => {
-      if (currentVrm) {
+      if (currentVrm && !autoSimulation) {
         updateFatnessForBMI(currentVrm, currentBMI);
       }
     };
 
     // BMI変更を監視
-    handleBMIChange();
+    // handleBMIChange(); // シミュレーション中の干渉を防ぐため無効化
 
     // クリーンアップ
     return () => {
@@ -307,7 +318,7 @@ export default function SimpleVRMViewer({ avatarData, currentBMI, dailySurplusCa
 
   }, [avatarData.vrmPath]);
 
-  // fatness値更新用の共通関数
+  // fatness値更新用の共通関数（デバッグ強化版）
   const updateFatnessBlendShape = (fatnessValue: number, source: string) => {
     if (vrmRef.current) {
       const scene = vrmRef.current.scene || vrmRef.current.userData?.scene || vrmRef.current;
@@ -321,8 +332,18 @@ export default function SimpleVRMViewer({ avatarData, currentBMI, dailySurplusCa
               if (object.morphTargetDictionary[name] !== undefined) {
                 const index = object.morphTargetDictionary[name];
                 if (object.morphTargetInfluences) {
+                  const oldValue = object.morphTargetInfluences[index];
                   object.morphTargetInfluences[index] = fatnessValue;
-                  console.log(`✅ ${source} → ${name}: ${fatnessValue.toFixed(2)}`);
+                  
+                  // リセット現象検出（重要なもののみ）
+                  if (Math.abs(oldValue - fatnessValue) > 0.001) {
+                    const isResetPhenomenon = (oldValue > fatnessValue) && autoSimulation;
+                    // レベル4(0.4)への戻りを特に監視
+                    const isLevel4Reset = Math.abs(fatnessValue - 0.4) < 0.001;
+                    if (isResetPhenomenon || isLevel4Reset) {
+                      console.log(`🚨 リセット現象検出: ${oldValue.toFixed(3)} → ${fatnessValue.toFixed(3)} (source: ${source})`);
+                    }
+                  }
                   break;
                 }
               }
@@ -333,23 +354,77 @@ export default function SimpleVRMViewer({ avatarData, currentBMI, dailySurplusCa
     }
   };
 
-  // スムーズなアニメーション用の補間関数
-  const animateToTargetFatness = (targetValue: number, source: string) => {
+  // スムーズなアニメーション用の補間関数（重複防止機能付き）
+  const animateToTargetFatness = useCallback((targetValue: number, source: string) => {
+    // レベル4(0.4)への変更を特に監視
+    if (Math.abs(targetValue - 0.4) < 0.001 && autoSimulation) {
+      console.log(`🔍 シミュレーション中にレベル4要求: ${currentFatnessValue.toFixed(3)} → ${targetValue.toFixed(3)} (source: ${source})`);
+      console.trace('呼び出し元のスタックトレース:');
+    }
+
+    // 同値への無意味なアニメーションを防止
+    if (Math.abs(currentFatnessValue - targetValue) < 0.001) {
+      return;
+    }
+
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current);
     }
 
-    const startValue = currentFatnessValue;
+    // Three.jsの実際の値も確認
+    let actualThreeJSValue = 0;
+    if (vrmRef.current) {
+      const scene = vrmRef.current.scene || vrmRef.current.userData?.scene || vrmRef.current;
+      if (scene && scene.traverse) {
+        scene.traverse((object: any) => {
+          if (object.isSkinnedMesh && object.morphTargetDictionary) {
+            const fatnessNames = ['fatness', 'fat', 'belly', 'weight'];
+            for (const name of fatnessNames) {
+              if (object.morphTargetDictionary[name] !== undefined) {
+                const index = object.morphTargetDictionary[name];
+                if (object.morphTargetInfluences) {
+                  actualThreeJSValue = object.morphTargetInfluences[index];
+                  break;
+                }
+              }
+            }
+          }
+        });
+      }
+    }
+    
+    // React Stateではなく、Three.jsの実際の値を開始値にする
+    let actualStartValue = currentFatnessValue;
+    if (actualThreeJSValue > 0) {
+      actualStartValue = actualThreeJSValue;
+      console.log(`🔄 Three.js実値を開始値に使用: React(${currentFatnessValue.toFixed(3)}) → Three.js(${actualThreeJSValue.toFixed(3)})`);
+    }
+    const startValue = actualStartValue;
+    
     const startTime = performance.now();
-    const duration = 800; // アニメーション時間（ミリ秒）
+    const duration = 800;
+
+    // React StateとThree.js値の乖離を検出（重要）
+    if (Math.abs(currentFatnessValue - actualThreeJSValue) > 0.01) {
+      console.log(`🚨 STATE MISMATCH: React(${currentFatnessValue.toFixed(3)}) ≠ Three.js(${actualThreeJSValue.toFixed(3)})`);
+    }
 
     const animate = (currentTime: number) => {
       const elapsed = currentTime - startTime;
       const progress = Math.min(elapsed / duration, 1);
       
-      // easeOutCubic関数でスムーズなアニメーション
       const easeProgress = 1 - Math.pow(1 - progress, 3);
       const currentValue = startValue + (targetValue - startValue) * easeProgress;
+      
+      // 中間値がレベル4(0.4)付近になる場合を検出
+      if (Math.abs(currentValue - 0.4) < 0.05 && autoSimulation) {
+        console.log(`⚠️ アニメーション中間値がレベル4付近: ${currentValue.toFixed(3)} (進捗:${(progress*100).toFixed(1)}%) start:${startValue.toFixed(3)} → target:${targetValue.toFixed(3)}`);
+      }
+      
+      // リセット現象検出
+      if (progress < 0.05 && currentValue > startValue && source.includes('痩せる')) {
+        console.log(`🚨 開始直後値増加: ${startValue.toFixed(3)} → ${currentValue.toFixed(3)}`);
+      }
       
       setCurrentFatnessValue(currentValue);
       updateFatnessBlendShape(currentValue, source);
@@ -358,11 +433,20 @@ export default function SimpleVRMViewer({ avatarData, currentBMI, dailySurplusCa
         animationFrameRef.current = requestAnimationFrame(animate);
       } else {
         animationFrameRef.current = null;
+        // アニメーション完了時に確実に最終値を設定
+        setCurrentFatnessValue(targetValue);
+        updateFatnessBlendShape(targetValue, source + " (完了)");
+        console.log(`✅ アニメーション完了: ${targetValue.toFixed(3)} (source: ${source})`);
       }
     };
 
     animationFrameRef.current = requestAnimationFrame(animate);
-  };
+  }, [currentFatnessValue]);
+
+  // animateToTargetFatnessのrefを更新
+  useEffect(() => {
+    animateToTargetFatnessRef.current = animateToTargetFatness;
+  }, [animateToTargetFatness]);
 
   // BMI分類を判定する関数
   const getBMICategory = (bmi: number): string => {
@@ -372,48 +456,162 @@ export default function SimpleVRMViewer({ avatarData, currentBMI, dailySurplusCa
     return '肥満';
   };
 
-  // BMIベースのfatnessレベルを計算（改良版：より細かい調整）
-  const calculateBMIBasedFatness = (bmi: number): number => {
-    if (bmi < 16) {
-      return 0; // 極痩せ
-    } else if (bmi < 18.5) {
-      return 1; // 痩せ
-    } else if (bmi < 22) {
-      return 2; // 標準下位
-    } else if (bmi < 25) {
-      return Math.round(2 + (bmi - 22) * 0.33); // 標準上位
-    } else if (bmi < 27.5) {
-      return Math.round(3 + (bmi - 25) * 0.8); // 軽度肥満
-    } else if (bmi < 30) {
-      return Math.round(5 + (bmi - 27.5) * 0.8); // 中度肥満
-    } else if (bmi < 35) {
-      return Math.round(7 + (bmi - 30) * 0.4); // 重度肥満
+  // 体重を計算（BMIと身長から）
+  const getWeight = (bmi: number, heightCm: number): number => {
+    const heightM = heightCm / 100;
+    return bmi * (heightM * heightM);
+  };
+
+  // 体脂肪率を推定（Deurenberg式）
+  const getBodyFatPercentage = (bmi: number, ageYears: number, gender: 'male' | 'female'): number => {
+    if (gender === 'male') {
+      return Math.max(0, (1.20 * bmi) + (0.23 * ageYears) - 16.2);
     } else {
-      return Math.min(10, Math.round(9 + (bmi - 35) * 0.2)); // 極重度肥満
+      return Math.max(0, (1.20 * bmi) + (0.23 * ageYears) - 5.4);
     }
   };
 
-  // 余剰カロリーベースの未来予測fatnessレベルを計算
-  const calculatePredictedFatness = (currentBmi: number, surplusCalories: number, months: number): number => {
-    // 7700kcal = 約1kg の脂肪
-    const weightChangeKg = (surplusCalories * 30 * months) / 7700;
-    // 仮定: 身長170cm（BMI計算用）
-    const estimatedHeight = 1.7;
-    const currentWeight = currentBmi * (estimatedHeight * estimatedHeight);
-    const predictedWeight = currentWeight + weightChangeKg;
-    const predictedBmi = predictedWeight / (estimatedHeight * estimatedHeight);
-    
-    return calculateBMIBasedFatness(predictedBmi);
+  // 筋肉量を推定（Janssen式）
+  const getMuscleMass = (weight: number, ageYears: number, gender: 'male' | 'female'): number => {
+    if (gender === 'male') {
+      return weight * Math.max(0.1, 0.407 - (0.003 * ageYears));
+    } else {
+      return weight * Math.max(0.1, 0.334 - (0.002 * ageYears));
+    }
   };
 
-  // シミュレーション用のタイムライン定義（指定された値に基づく）
-  const simulationTimeline = [
-    { months: 0, bmi: currentBMI, totalCalories: 0, description: '現在' },
-    { months: 12, bmi: 22.5, totalCalories: 36500, description: '1年後' },
-    { months: 36, bmi: 26.0, totalCalories: 109500, description: '3年後' },
-    { months: 60, bmi: 29.5, totalCalories: 182500, description: '5年後' },
-    { months: 120, bmi: 38.3, totalCalories: 365000, description: '10年後' }
-  ];
+  // 脂肪量を計算
+  const getFatMass = (weight: number, bodyFatPercentage: number): number => {
+    return (weight * bodyFatPercentage) / 100;
+  };
+
+  // 体組成データを計算（シミュレーション対応）
+  const getBodyComposition = (bmi: number, ageYears: number) => {
+    const weight = getWeight(bmi, height);
+    const bodyFatPercentage = getBodyFatPercentage(bmi, ageYears, avatarData.gender);
+    const muscleMass = getMuscleMass(weight, ageYears, avatarData.gender);
+    const fatMass = getFatMass(weight, bodyFatPercentage);
+
+    return {
+      weight: weight,
+      bodyFatPercentage: bodyFatPercentage,  
+      muscleMass: muscleMass,
+      fatMass: fatMass
+    };
+  };
+
+  // 現在の体組成データを計算
+  const getCurrentBodyComposition = () => {
+    if (autoSimulation) {
+      const simulatedBMI = getSimulatedBMI(simulationMonth);
+      const simulatedAge = age + Math.floor(simulationMonth / 12);
+      return getBodyComposition(simulatedBMI, simulatedAge);
+    } else {
+      return getBodyComposition(currentBMI, age);
+    }
+  };
+
+  // 表示用の年齢を取得
+  const getDisplayAge = () => {
+    return autoSimulation ? age + Math.floor(simulationMonth / 12) : age;
+  };
+
+  // 表示用のBMIを取得
+  const getDisplayBMI = () => {
+    return autoSimulation ? getSimulatedBMI(simulationMonth) : currentBMI;
+  };
+
+  // BMIベースのfatnessレベルを計算（BMI 20.8をLevel 5に設定）
+  const calculateBMIBasedFatness = (bmi: number): number => {
+    if (bmi < 15) {
+      return 0; // 極痩せ
+    } else if (bmi < 16.5) {
+      return 1; // 痩せ
+    } else if (bmi < 18) {
+      return 2; // 痩せ寄り
+    } else if (bmi < 19.5) {
+      return 3; // 標準下位
+    } else if (bmi < 20.2) {
+      return 4; // 標準中位下
+    } else if (bmi < 21.5) {
+      return 5; // 標準中位（BMI 20.8はここ）
+    } else if (bmi < 23) {
+      return 6; // 標準上位
+    } else if (bmi < 25) {
+      return 7; // 軽度肥満
+    } else if (bmi < 28) {
+      return 8; // 中度肥満
+    } else if (bmi < 32) {
+      return 9; // 重度肥満
+    } else {
+      return 10; // 極重度肥満
+    }
+  };
+
+
+  // シミュレーション用のタイムラインを指定された値に基づいて生成
+  const generateSimulationTimeline = () => {
+    // 提供された仕様に基づく固定値
+    if (dailySurplusCalories === -100) {
+      // 「少ない」の場合：Level 5からLevel 0まで減少
+      const calculateBMIReduction = (months: number) => {
+        // Level 5 (BMI 20.8) からLevel 0 (BMI 15未満) まで減少
+        const targetMinBMI = 14.5; // Level 0に到達する最終BMI
+        const maxReduction = currentBMI - targetMinBMI; // 約6.3BMI減少
+        const normalizedTime = months / 120; // 0-1に正規化
+        // 対数関数でスムーズな減少カーブ
+        return maxReduction * Math.log(normalizedTime * 19 + 1) / Math.log(20);
+      };
+      
+      return [
+        { months: 0, bmi: currentBMI, totalCalories: 0, description: '現在' },
+        { months: 1, bmi: currentBMI - calculateBMIReduction(1), totalCalories: -3000, description: '1ヶ月後' },
+        { months: 12, bmi: currentBMI - calculateBMIReduction(12), totalCalories: -36500, description: '1年後' },
+        { months: 36, bmi: currentBMI - calculateBMIReduction(36), totalCalories: -109500, description: '3年後' },
+        { months: 60, bmi: currentBMI - calculateBMIReduction(60), totalCalories: -182500, description: '5年後' },
+        { months: 120, bmi: currentBMI - calculateBMIReduction(120), totalCalories: -365000, description: '10年後' }
+      ];
+    } else if (dailySurplusCalories === 0) {
+      // 「普通」の場合：BMI維持（わずかな変動のみ）
+      return [
+        { months: 0, bmi: currentBMI, totalCalories: 0, description: '現在' },
+        { months: 1, bmi: currentBMI, totalCalories: 0, description: '1ヶ月後' },
+        { months: 12, bmi: currentBMI + 0.1, totalCalories: 1800, description: '1年後' },
+        { months: 36, bmi: currentBMI + 0.3, totalCalories: 5400, description: '3年後' },
+        { months: 60, bmi: currentBMI + 0.5, totalCalories: 9000, description: '5年後' },
+        { months: 120, bmi: currentBMI + 1.0, totalCalories: 18000, description: '10年後' }
+      ];
+    } else if (dailySurplusCalories === 100) {
+      // 「多い」の場合：指数関数的増加（初期は緩やか、後期は急激）
+      const calculateBMIIncrease = (months: number) => {
+        // 指数関数による自然な増加曲線 y = a * (e^(bx) - 1)
+        const maxIncrease = 15; // 最大15BMI増加
+        const normalizedTime = months / 120; // 0-1に正規化
+        const exponentialFactor = 1.5; // 指数の強さ
+        return maxIncrease * (Math.exp(normalizedTime * exponentialFactor) - 1) / (Math.exp(exponentialFactor) - 1);
+      };
+      
+      return [
+        { months: 0, bmi: currentBMI, totalCalories: 0, description: '現在' },
+        { months: 1, bmi: Math.min(50, currentBMI + calculateBMIIncrease(1)), totalCalories: 3000, description: '1ヶ月後' },
+        { months: 12, bmi: Math.min(50, currentBMI + calculateBMIIncrease(12)), totalCalories: 36500, description: '1年後' },
+        { months: 36, bmi: Math.min(50, currentBMI + calculateBMIIncrease(36)), totalCalories: 109500, description: '3年後' },
+        { months: 60, bmi: Math.min(50, currentBMI + calculateBMIIncrease(60)), totalCalories: 182500, description: '5年後' },
+        { months: 120, bmi: Math.min(50, currentBMI + calculateBMIIncrease(120)), totalCalories: 365000, description: '10年後' }
+      ];
+    }
+    
+    // フォールバック
+    return [{ months: 0, bmi: currentBMI, totalCalories: 0, description: '現在' }];
+  };
+  
+  const simulationTimeline = generateSimulationTimeline();
+  
+  // タイムライン生成ログ
+  useEffect(() => {
+    // console.log(`📈 タイムライン: ${dailySurplusCalories}kcal/日`);
+  }, [dailySurplusCalories]);
+
 
   // 現在のシミュレーション月に基づいてBMIを補間計算
   const getSimulatedBMI = (month: number): number => {
@@ -438,79 +636,130 @@ export default function SimpleVRMViewer({ avatarData, currentBMI, dailySurplusCa
     
     // 線形補間
     const progress = (month - beforePoint.months) / (afterPoint.months - beforePoint.months);
-    return beforePoint.bmi + (afterPoint.bmi - beforePoint.bmi) * progress;
+    const interpolatedBMI = beforePoint.bmi + (afterPoint.bmi - beforePoint.bmi) * progress;
+    
+    return interpolatedBMI;
   };
 
-  // 11段階のfatnessレベル定義
-  const fatnessLevels = [
-    { level: 0, label: '極痩せ', months: 0, description: '現在' },
-    { level: 1, label: '痩せ', months: 0, description: '現在' },
-    { level: 2, label: '標準', months: 0, description: '現在' },
-    { level: 3, label: '軽度+', months: 1, description: '1ヶ月後' },
-    { level: 4, label: '軽度++', months: 3, description: '3ヶ月後' },
-    { level: 5, label: '中度', months: 6, description: '6ヶ月後' },
-    { level: 6, label: '中度+', months: 12, description: '1年後' },
-    { level: 7, label: '重度', months: 18, description: '1.5年後' },
-    { level: 8, label: '重度+', months: 24, description: '2年後' },
-    { level: 9, label: '極重度', months: 36, description: '3年後' },
-    { level: 10, label: '最大', months: 60, description: '5年後' }
-  ];
 
-  // BMI変更時の処理（デバッグ関係なく自動調整）
+  // BMI変更時の処理（初期値レベル4を保持・重複防止機能付き）
   useEffect(() => {
-    if (!autoSimulation && vrmRef.current) {
-      console.log(`🔄 BMI変更検出: ${currentBMI} (${getBMICategory(currentBMI)})`);
-      
-      const fatnessLevel = calculateBMIBasedFatness(currentBMI);
-      const fatnessValue = fatnessLevel / 10; // 0-10を0-1に変換
-      
-      animateToTargetFatness(fatnessValue, `BMI ${currentBMI} → Level ${fatnessLevel}`);
+    if (!autoSimulation && 
+        vrmRef.current && 
+        simulationMonth === 0 && 
+        vrmLoaded &&
+        !isExplicitReset.current) {  // 明示的なリセット中は実行しない
+      // 初期状態では常にレベル4（fatness 0.4）を保持
+      animateToTargetFatness(0.4, `初期値レベル4を保持`);
     }
-  }, [currentBMI, autoSimulation]);
+  }, [autoSimulation, simulationMonth, vrmLoaded]);
 
-  // 予測モード時の処理
-  useEffect(() => {
-    if (predictionMode && vrmRef.current && dailySurplusCalories !== 0) {
-      const targetLevel = calculatePredictedFatness(currentBMI, dailySurplusCalories, fatnessLevels[manualFatness].months);
-      const fatnessValue = Math.min(targetLevel / 10, 1.0); // 0-10を0-1に変換
+  // 中央集権的なリセット処理（重複防止機能付き）
+  const executeReset = useCallback((reason: string, delay: number = 0) => {
+    isExplicitReset.current = true;
+    
+    setTimeout(() => {
+      setSimulationMonth(0);
+      setCurrentStageIndex(0);
+      if (animateToTargetFatnessRef.current) {
+        animateToTargetFatnessRef.current(0.4, reason);
+      }
       
-      animateToTargetFatness(fatnessValue, `予測 ${fatnessLevels[manualFatness].description} → Level ${targetLevel}`);
-    }
-  }, [predictionMode, manualFatness, currentBMI, dailySurplusCalories]);
+      // 少し遅れてフラグをクリア
+      setTimeout(() => {
+        isExplicitReset.current = false;
+      }, 100);
+    }, delay);
+  }, []);
 
-  // デバッグモード時の手動fatness制御
+  // 段階的な時間軸定義
+  const timeStages = [1, 12, 36, 60, 120]; // 1ヶ月後、1年後、3年後、5年後、10年後
+  const [currentStageIndex, setCurrentStageIndex] = useState<number>(0);
+  const [manualStop, setManualStop] = useState<boolean>(false);
+
+  // 外部からのシミュレーション開始制御
   useEffect(() => {
-    if (debugMode && !predictionMode && vrmRef.current) {
-      const fatnessValue = manualFatness / 10; // 0-10を0-1に変換
-      animateToTargetFatness(fatnessValue, `手動制御 Level ${manualFatness}`);
+    if (startSimulation && !autoSimulation) {
+      setCurrentStageIndex(0);
+      setSimulationMonth(0);
+      setAutoSimulation(true);
     }
-  }, [manualFatness, debugMode, predictionMode]);
+  }, [startSimulation, autoSimulation]);
+
+  // 外部からのシミュレーション停止制御
+  useEffect(() => {
+    if (stopSimulation && autoSimulation) {
+      setManualStop(true);
+      setAutoSimulation(false);
+    }
+  }, [stopSimulation, autoSimulation]);
+
+  // シミュレーション状態変更を親コンポーネントに通知
+  useEffect(() => {
+    if (onSimulationStateChange) {
+      onSimulationStateChange(autoSimulation);
+    }
+  }, [autoSimulation, onSimulationStateChange]);
+
+  // autoSimulationがfalseになったときにリセット
+  useEffect(() => {
+    if (!autoSimulation) {
+      setCurrentStageIndex(0);
+      
+      if (manualStop) {
+        // 統一的なリセット処理を使用
+        if (vrmRef.current) {
+          executeReset(`手動停止: 初期値復帰`, 200);
+        }
+        setManualStop(false);
+      }
+    }
+  }, [autoSimulation, manualStop]);
 
   // 自動シミュレーション処理
   useEffect(() => {
-    if (autoSimulation && vrmRef.current) {
+    if (autoSimulation && vrmLoaded && vrmRef.current) {
+      
       const interval = setInterval(() => {
-        setSimulationMonth(prev => {
-          const nextMonth = prev + 1;
+        setCurrentStageIndex(prevIndex => {
+          const nextIndex = prevIndex + 1;
           
-          // 10年（120ヶ月）で終了
-          if (nextMonth > 120) {
+          // 最後のステージ（10年後）で終了
+          if (nextIndex >= timeStages.length) {
+            // console.log('🏁 シミュレーション完了');
             setAutoSimulation(false);
-            return 120;
+            // 統一的なリセット処理を使用
+            executeReset(`シミュレーション完了: 初期値復帰`, 1000);
+            return timeStages.length - 1;
           }
           
-          // 新しい月のBMIを計算してfatnessを更新
-          const simulatedBMI = getSimulatedBMI(nextMonth);
+          const targetMonth = timeStages[nextIndex];
+          
+          setSimulationMonth(targetMonth);
+          
+          // 新しいステージのBMIを計算してfatnessを更新
+          const simulatedBMI = getSimulatedBMI(targetMonth);
           const fatnessLevel = calculateBMIBasedFatness(simulatedBMI);
           const fatnessValue = fatnessLevel / 10;
           
+          const stageDescription = targetMonth === 1 ? '1ヶ月後' : 
+                                  targetMonth === 12 ? '1年後' : 
+                                  targetMonth === 36 ? '3年後' : 
+                                  targetMonth === 60 ? '5年後' : '10年後';
+          
+          console.log(`📊 ${stageDescription}: BMI ${simulatedBMI.toFixed(1)} → Lvl${fatnessLevel} → fatness ${fatnessValue.toFixed(3)}`);
+          
+          // デバッグ: アニメーション開始前の状態確認
+          console.log(`🎯 ${stageDescription} アニメーション準備: 現在値=${currentFatnessValue.toFixed(3)} → 目標値=${fatnessValue.toFixed(3)}`);
+          
           setTimeout(() => {
-            animateToTargetFatness(fatnessValue, `月 ${nextMonth}: BMI ${simulatedBMI.toFixed(1)} → Level ${fatnessLevel}`);
+            console.log(`🚀 ${stageDescription} アニメーション開始: ${fatnessValue.toFixed(3)}`);
+            animateToTargetFatness(fatnessValue, `${stageDescription}: BMI ${simulatedBMI.toFixed(1)}`);
           }, 100);
           
-          return nextMonth;
+          return nextIndex;
         });
-      }, 3000); // 3秒ごと
+      }, 3000);
       
       simulationTimerRef.current = interval;
       
@@ -520,7 +769,7 @@ export default function SimpleVRMViewer({ avatarData, currentBMI, dailySurplusCa
         }
       };
     }
-  }, [autoSimulation]);
+  }, [autoSimulation, vrmLoaded]);
 
   // コンポーネントアンマウント時のクリーンアップ
   useEffect(() => {
@@ -540,123 +789,20 @@ export default function SimpleVRMViewer({ avatarData, currentBMI, dailySurplusCa
       
       {/* シンプルなステータス表示 */}
       <div className="absolute top-4 left-4 bg-black bg-opacity-75 text-white p-2 rounded text-sm">
-        <p>🎭 {avatarData.name}</p>
-        <p>📊 BMI: {currentBMI.toFixed(1)} ({getBMICategory(currentBMI)})</p>
-        <p>🎬 {animationStatus}</p>
-        {debugMode && (
-          <p>🔧 手動Fatness: Level {manualFatness} ({currentFatnessValue.toFixed(2)})</p>
-        )}
-        {predictionMode && (
-          <p>🔮 予測モード: {fatnessLevels[manualFatness].description}</p>
-        )}
-        {predictionMode && dailySurplusCalories !== 0 && (
-          <p>🍕 余剰カロリー: {dailySurplusCalories}kcal/日</p>
-        )}
+        <p>🎂 年齢: {getDisplayAge()}歳 {autoSimulation && `(${simulationMonth === 1 ? '1ヶ月後' : simulationMonth === 12 ? '1年後' : simulationMonth === 36 ? '3年後' : simulationMonth === 60 ? '5年後' : simulationMonth === 120 ? '10年後' : '現在'})`}</p>
+        <p>📊 BMI: {getDisplayBMI().toFixed(1)} ({getBMICategory(getDisplayBMI())})</p>
+        <p>💪 推定筋量: {getCurrentBodyComposition().muscleMass.toFixed(1)}kg</p>
+        <p>🫀 推定脂肪量: {getCurrentBodyComposition().fatMass.toFixed(1)}kg</p>
+        <p>🎚️ Fatness: {currentFatnessValue.toFixed(3)} (Level: {calculateBMIBasedFatness(autoSimulation ? getSimulatedBMI(simulationMonth) : currentBMI)})</p>
         {autoSimulation && (
-          <>
-            <p>⏰ シミュレーション: {simulationMonth}ヶ月経過</p>
-            <p>📈 予測BMI: {getSimulatedBMI(simulationMonth).toFixed(1)}</p>
-            <p>🔥 累計カロリー: {Math.round((simulationMonth / 12) * (simulationMonth <= 12 ? 36500 : simulationMonth <= 36 ? 109500 : simulationMonth <= 60 ? 182500 : 365000) / (simulationMonth <= 12 ? 1 : simulationMonth <= 36 ? 3 : simulationMonth <= 60 ? 5 : 10)).toLocaleString()}kcal</p>
-          </>
+          <p style={{fontSize: '10px', color: '#ffff99'}}>
+            🔍 Debug: 現在BMI({currentBMI.toFixed(1)}) → シミュBMI({getSimulatedBMI(simulationMonth).toFixed(1)}) → Level({calculateBMIBasedFatness(getSimulatedBMI(simulationMonth))})
+          </p>
         )}
       </div>
 
-      {/* デバッグコントロールパネル */}
-      <div className="absolute top-4 right-4 bg-black bg-opacity-75 text-white p-2 rounded text-sm space-y-2">
-        <button
-          onClick={() => setDebugMode(!debugMode)}
-          className={`px-3 py-1 rounded text-xs font-bold w-full ${
-            debugMode 
-              ? 'bg-red-600 hover:bg-red-700' 
-              : 'bg-blue-600 hover:bg-blue-700'
-          }`}
-        >
-          {debugMode ? '🔧 デバッグOFF' : '🔧 デバッグON'}
-        </button>
-        
-        {debugMode && (
-          <button
-            onClick={() => setPredictionMode(!predictionMode)}
-            className={`px-3 py-1 rounded text-xs font-bold w-full ${
-              predictionMode 
-                ? 'bg-purple-600 hover:bg-purple-700' 
-                : 'bg-green-600 hover:bg-green-700'
-            }`}
-          >
-            {predictionMode ? '🔮 予測OFF' : '🔮 予測ON'}
-          </button>
-        )}
-        
-        <button
-          onClick={() => {
-            if (autoSimulation) {
-              setAutoSimulation(false);
-              setSimulationMonth(0);
-            } else {
-              setAutoSimulation(true);
-              setSimulationMonth(0);
-            }
-          }}
-          className={`px-3 py-1 rounded text-xs font-bold w-full ${
-            autoSimulation 
-              ? 'bg-red-600 hover:bg-red-700' 
-              : 'bg-orange-600 hover:bg-orange-700'
-          }`}
-        >
-          {autoSimulation ? '⏹️ 停止' : '▶️ 自動シミュレーション'}
-        </button>
-      </div>
 
-      {/* 11段階Fatness調整UI */}
-      {debugMode && (
-        <div className="absolute bottom-4 left-4 bg-black bg-opacity-90 text-white p-4 rounded-lg max-h-96 overflow-y-auto">
-          <h3 className="text-sm font-bold mb-3">
-            {predictionMode ? '🔮 未来予測シミュレーション' : '🎚️ Fatness手動制御'}
-          </h3>
-          <div className="flex flex-col space-y-1">
-            {fatnessLevels.map((levelData) => {
-              const isCurrentBMILevel = !debugMode && !predictionMode && 
-                calculateBMIBasedFatness(currentBMI) === levelData.level;
-              
-              return (
-                <button
-                  key={levelData.level}
-                  onClick={() => setManualFatness(levelData.level)}
-                  className={`px-3 py-2 rounded text-xs font-medium transition-all text-left ${
-                    manualFatness === levelData.level
-                      ? predictionMode 
-                        ? 'bg-purple-600 text-white shadow-lg'
-                        : 'bg-green-600 text-white shadow-lg'
-                      : isCurrentBMILevel
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-gray-600 hover:bg-gray-500 text-gray-200'
-                  }`}
-                >
-                  <div className="flex justify-between items-center">
-                    <span>Lv{levelData.level}: {levelData.label}</span>
-                    <span className="text-xs opacity-75">
-                      {predictionMode ? levelData.description : `${(levelData.level / 10).toFixed(1)}`}
-                    </span>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-          <div className="mt-3 pt-2 border-t border-gray-600">
-            <p className="text-xs text-gray-300">
-              現在値: {currentFatnessValue.toFixed(2)} / 1.00
-            </p>
-            <p className="text-xs text-gray-400">
-              目標値: {(manualFatness / 10).toFixed(2)}
-            </p>
-            {predictionMode && (
-              <p className="text-xs text-purple-300">
-                時間軸: {fatnessLevels[manualFatness].description}
-              </p>
-            )}
-          </div>
-        </div>
-      )}
+
     </div>
   );
 }

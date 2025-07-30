@@ -14,9 +14,18 @@ interface BMICalculatorProps {
     excessCalories: string;
   }) => void;
   onAnimationStateChange?: (isAnimating: boolean) => void;
+  onPredictionButtonClick?: () => void;
+  isSimulationRunning?: boolean;
 }
 
-export default function BMICalculator({ onBMIChange, onFutureBMIChange, onUserDataChange, onAnimationStateChange }: BMICalculatorProps) {
+export default function BMICalculator({ 
+  onBMIChange, 
+  onFutureBMIChange, 
+  onUserDataChange, 
+  onAnimationStateChange,
+  onPredictionButtonClick,
+  isSimulationRunning = false
+}: BMICalculatorProps) {
   const [userData, setUserData] = useState({
     height: 170,
     weight: 60,
@@ -44,7 +53,7 @@ export default function BMICalculator({ onBMIChange, onFutureBMIChange, onUserDa
         onUserDataChange(userData);
       }
     } catch (error) {
-      console.error('BMI計算エラー:', error);
+      // console.error('BMI計算エラー:', error);
     }
   };
 
@@ -63,7 +72,7 @@ export default function BMICalculator({ onBMIChange, onFutureBMIChange, onUserDa
         onAnimationStateChange(true);
       }
     } catch (error) {
-      console.error('未来予測計算エラー:', error);
+      // console.error('未来予測計算エラー:', error);
     }
   };
 
@@ -78,7 +87,7 @@ export default function BMICalculator({ onBMIChange, onFutureBMIChange, onUserDa
         onUserDataChange(newUserData);
       }
     } catch (error) {
-      console.error('入力変更エラー:', error);
+      // console.error('入力変更エラー:', error);
     }
   };
 
@@ -239,10 +248,14 @@ export default function BMICalculator({ onBMIChange, onFutureBMIChange, onUserDa
       </div>
 
       <button
-        onClick={handleFuturePrediction}
-        className="w-full py-3 bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors font-medium mb-6"
+        onClick={onPredictionButtonClick || handleFuturePrediction}
+        className={`w-full py-3 rounded-md font-medium mb-6 transition-colors ${
+          isSimulationRunning
+            ? 'bg-red-500 text-white hover:bg-red-600'
+            : 'bg-green-500 text-white hover:bg-green-600'
+        }`}
       >
-        未来を予測する
+        {isSimulationRunning ? '⏹️ 中止する' : '🔮 未来を予測する'}
       </button>
 
       {futurePredictions.length > 0 && (

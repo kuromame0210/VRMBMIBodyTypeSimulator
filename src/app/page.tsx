@@ -29,14 +29,14 @@ function HomeContent() {
   const avatarId = searchParams.get('avatar');
   
   const [selectedAvatar, setSelectedAvatar] = useState<AvatarData>(() => {
-    console.log('🔧 初期アバター設定 - avatarId:', avatarId);
+    // console.log('🔧 初期アバター設定 - avatarId:', avatarId);
     if (avatarId) {
       const avatar = getAvatarById(avatarId);
       if (avatar) {
-        console.log('✅ 初期アバター見つかりました:', avatar.name);
+        // console.log('✅ 初期アバター見つかりました:', avatar.name);
         return avatar;
       } else {
-        console.log('❌ 初期アバターが見つかりません、デフォルトを使用');
+        // console.log('❌ 初期アバターが見つかりません、デフォルトを使用');
       }
     }
     return getDefaultAvatar();
@@ -51,6 +51,9 @@ function HomeContent() {
   const [currentBMI, setCurrentBMI] = useState(0);
   const [futureBMI, setFutureBMI] = useState<Array<{ period: number; weight: number; bmi: number }>>([]);
   const [isAnimating, setIsAnimating] = useState(false);
+  const [isSimulationRunning, setIsSimulationRunning] = useState(false);
+  const [startSimulation, setStartSimulation] = useState(false);
+  const [stopSimulation, setStopSimulation] = useState(false);
 
   const handleOpenAvatarSelect = () => {
     router.push(`/avatar-select?current=${selectedAvatar.id}`);
@@ -85,6 +88,23 @@ function HomeContent() {
     }
   };
 
+  const handleSimulationStateChange = (running: boolean) => {
+    setIsSimulationRunning(running);
+    // 制御フラグをリセット
+    setStartSimulation(false);
+    setStopSimulation(false);
+  };
+
+  const handlePredictionButtonClick = () => {
+    if (isSimulationRunning) {
+      // console.log('🛑 未来予測を中止');
+      setStopSimulation(true);
+    } else {
+      // console.log('🔮 未来予測を開始');
+      setStartSimulation(true);
+    }
+  };
+
 
   useEffect(() => {
     const bmi = calculateBMI(userData.weight, userData.height);
@@ -95,27 +115,27 @@ function HomeContent() {
     if (avatarId) {
       const avatar = getAvatarById(avatarId);
       if (avatar) {
-        console.log('🔄 アバター更新:', avatar.name, '(ID:', avatar.id, ')');
+        // console.log('🔄 アバター更新:', avatar.name, '(ID:', avatar.id, ')');
         setSelectedAvatar(avatar);
         setUserData(prev => ({ ...prev, gender: avatar.gender }));
       } else {
-        console.log('❌ 指定されたアバターが見つかりません:', avatarId);
+        // console.log('❌ 指定されたアバターが見つかりません:', avatarId);
       }
     }
   }, [avatarId]);
 
   // デバッグ用ログ
-  console.log('📊 Page状態:', {
-    avatarId: avatarId,
-    selectedAvatar: selectedAvatar?.id,
-    selectedAvatarName: selectedAvatar?.name,
-    showWelcome: !avatarId && !selectedAvatar,
-    searchParamsString: searchParams.toString()
-  });
+  // console.log('📊 Page状態:', {
+  //   avatarId: avatarId,
+  //   selectedAvatar: selectedAvatar?.id,
+  //   selectedAvatarName: selectedAvatar?.name,
+  //   showWelcome: !avatarId && !selectedAvatar,
+  //   searchParamsString: searchParams.toString()
+  // });
 
   // アバターが選択されていない場合はウェルカム画面を表示
   if (!avatarId && !selectedAvatar) {
-    console.log('ウェルカム画面を表示中');
+    // console.log('ウェルカム画面を表示中');
     return <WelcomeScreen />;
   }
 
@@ -132,6 +152,8 @@ function HomeContent() {
               onFutureBMIChange={handleFutureBMIChange}
               onUserDataChange={handleUserDataChange}
               onAnimationStateChange={handleAnimationStateChange}
+              onPredictionButtonClick={handlePredictionButtonClick}
+              isSimulationRunning={isSimulationRunning}
             />
           </div>
           
@@ -143,6 +165,12 @@ function HomeContent() {
                 <SimpleVRMViewer 
                   currentBMI={currentBMI}
                   avatarData={selectedAvatar}
+                  age={userData.age}
+                  height={userData.height}
+                  dailySurplusCalories={userData.excessCalories === '少ない' ? -100 : userData.excessCalories === '多い' ? 100 : 0}
+                  onSimulationStateChange={handleSimulationStateChange}
+                  startSimulation={startSimulation}
+                  stopSimulation={stopSimulation}
                 />
               </ErrorBoundary>
             </div>
