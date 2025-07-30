@@ -3,6 +3,7 @@
 import { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { AVATAR_LIST, AvatarData, getAvatarById, getAvatarsWithFatness, getAvatarsWithFatnessByGender, getDefaultAvatar } from '../../utils/avatarConfig';
+import { saveSelectedAvatar } from '../../utils/localStorage';
 import ThumbnailManager from '../../components/ThumbnailManager';
 
 function AvatarSelectContent() {
@@ -45,6 +46,8 @@ function AvatarSelectContent() {
   const handleConfirm = () => {
     if (selectedAvatar) {
       // console.log('✅ アバター確定:', selectedAvatar.name, '→ メイン画面に遷移');
+      // ローカルストレージに保存
+      saveSelectedAvatar(selectedAvatar.id);
       router.push(`/?avatar=${selectedAvatar.id}`);
     } else {
       // console.error('❌ アバターが選択されていません');

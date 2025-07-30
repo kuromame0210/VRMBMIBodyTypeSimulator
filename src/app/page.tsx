@@ -8,6 +8,7 @@ import BMICalculator from '../components/BMICalculator';
 import WelcomeScreen from '../components/WelcomeScreen';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { calculateBMI } from '../utils/calculations';
+import { getSelectedAvatar, saveSelectedAvatar, hasSelectedAvatar } from '../utils/localStorage';
 
 
 // VRMViewer
@@ -27,20 +28,9 @@ function HomeContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const avatarId = searchParams.get('avatar');
+  const [isInitializing, setIsInitializing] = useState(true);
   
-  const [selectedAvatar, setSelectedAvatar] = useState<AvatarData>(() => {
-    // console.log('🔧 初期アバター設定 - avatarId:', avatarId);
-    if (avatarId) {
-      const avatar = getAvatarById(avatarId);
-      if (avatar) {
-        // console.log('✅ 初期アバター見つかりました:', avatar.name);
-        return avatar;
-      } else {
-        // console.log('❌ 初期アバターが見つかりません、デフォルトを使用');
-      }
-    }
-    return getDefaultAvatar();
-  });
+  const [selectedAvatar, setSelectedAvatar] = useState<AvatarData | null>(null);
   const [userData, setUserData] = useState({
     height: 170,
     weight: 60,
@@ -106,23 +96,48 @@ function HomeContent() {
   };
 
 
+  // 初期化処理：ローカルストレージチェックとアバター選択状態決定
   useEffect(() => {
-    const bmi = calculateBMI(userData.weight, userData.height);
-    setCurrentBMI(bmi);
-  }, [userData.weight, userData.height]);
+    const initializeAvatarSelection = () => {
+      // URLパラメータでアバターが指定されている場合
+      if (avatarId) {
+        const avatar = getAvatarById(avatarId);
+        if (avatar) {
+          setSelectedAvatar(avatar);
+          setUserData(prev => ({ ...prev, gender: avatar.gender }));
+          // ローカルストレージに保存
+          saveSelectedAvatar(avatar.id);
+          setIsInitializing(false);
+          return;
+        }
+      }
+
+      // ローカルストレージから既存の選択をチェック
+      const savedAvatarId = getSelectedAvatar();
+      if (savedAvatarId) {
+        const savedAvatar = getAvatarById(savedAvatarId);
+        if (savedAvatar) {
+          setSelectedAvatar(savedAvatar);
+          setUserData(prev => ({ ...prev, gender: savedAvatar.gender }));
+          setIsInitializing(false);
+          return;
+        }
+      }
+
+      // 初回アクセス - アバター選択画面にリダイレクト
+      setIsInitializing(false);
+      router.push('/avatar-select');
+    };
+
+    initializeAvatarSelection();
+  }, [avatarId, router]);
 
   useEffect(() => {
-    if (avatarId) {
-      const avatar = getAvatarById(avatarId);
-      if (avatar) {
-        // console.log('🔄 アバター更新:', avatar.name, '(ID:', avatar.id, ')');
-        setSelectedAvatar(avatar);
-        setUserData(prev => ({ ...prev, gender: avatar.gender }));
-      } else {
-        // console.log('❌ 指定されたアバターが見つかりません:', avatarId);
-      }
+    if (selectedAvatar) {
+      const bmi = calculateBMI(userData.weight, userData.height);
+      setCurrentBMI(bmi);
     }
-  }, [avatarId]);
+  }, [userData.weight, userData.height, selectedAvatar]);
 
   // デバッグ用ログ
   // console.log('📊 Page状態:', {
@@ -133,10 +148,16 @@ function HomeContent() {
   //   searchParamsString: searchParams.toString()
   // });
 
-  // アバターが選択されていない場合はウェルカム画面を表示
-  if (!avatarId && !selectedAvatar) {
-    // console.log('ウェルカム画面を表示中');
-    return <WelcomeScreen />;
+  // 初期化中またはアバターが選択されていない場合の処理
+  if (isInitializing || !selectedAvatar) {
+    return (
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4 mx-auto"></div>
+          <p>アバター設定を確認中...</p>
+        </div>
+      </div>
+    );
   }
 
   return (

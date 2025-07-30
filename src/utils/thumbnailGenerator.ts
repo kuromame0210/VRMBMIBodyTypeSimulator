@@ -65,18 +65,33 @@ export class ThumbnailGenerator {
       loader.load(
         vrmPath,
         (gltf) => {
+          let targetScene: THREE.Object3D;
+          let isVRM = false;
+
+          // VRMデータの確認
           const vrm = gltf.userData.vrm;
-          if (!vrm) {
-            reject(new Error('VRMデータが見つかりません'));
+          if (vrm) {
+            // VRMの場合
+            console.log('VRMデータ検出:', vrmPath);
+            targetScene = vrm.scene;
+            isVRM = true;
+            VRMUtils.rotateVRM0(vrm);
+          } else {
+            // 通常のGLBファイルの場合
+            console.log('通常のGLBファイル:', vrmPath);
+            targetScene = gltf.scene;
+          }
+
+          if (!targetScene) {
+            reject(new Error('3Dシーンデータが見つかりません'));
             return;
           }
 
-          // VRMをシーンに追加
-          this.scene.add(vrm.scene);
-          VRMUtils.rotateVRM0(vrm);
+          // シーンに追加
+          this.scene.add(targetScene);
 
-          // カメラ位置をVRMのサイズに合わせて調整
-          const box = new THREE.Box3().setFromObject(vrm.scene);
+          // カメラ位置をモデルのサイズに合わせて調整
+          const box = new THREE.Box3().setFromObject(targetScene);
           const size = box.getSize(new THREE.Vector3());
           const center = box.getCenter(new THREE.Vector3());
 
@@ -96,11 +111,11 @@ export class ThumbnailGenerator {
           const canvas = this.renderer.domElement;
           const dataURL = canvas.toDataURL('image/png');
 
-          // シーンからVRMを削除
-          this.scene.remove(vrm.scene);
+          // シーンからモデルを削除
+          this.scene.remove(targetScene);
 
-          // VRMのメモリ解放
-          vrm.scene.traverse((object: any) => {
+          // メモリ解放
+          targetScene.traverse((object: any) => {
             if (object.geometry) {
               object.geometry.dispose();
             }
