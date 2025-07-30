@@ -23,36 +23,36 @@ function AvatarSelectContent() {
     : getAvatarsWithFatnessByGender(genderFilter);
 
   // デバッグログ
-  console.log('🎮 アバター選択画面 状態:', {
-    currentAvatarId,
-    selectedAvatar: selectedAvatar?.id,
-    genderFilter,
-    filteredAvatarsCount: filteredAvatars.length,
-    showThumbnailManager,
-    totalAvatars: AVATAR_LIST.length
-  });
+  // console.log('🎮 アバター選択画面 状態:', {
+  //   currentAvatarId,
+  //   selectedAvatar: selectedAvatar?.id,
+  //   genderFilter,
+  //   filteredAvatarsCount: filteredAvatars.length,
+  //   showThumbnailManager,
+  //   totalAvatars: AVATAR_LIST.length
+  // });
 
   // 初回のみAVATAR_LISTの内容を確認
   if (AVATAR_LIST.length > 0) {
-    console.log('📋 利用可能なアバター:', AVATAR_LIST.map(a => ({ id: a.id, name: a.name, gender: a.gender })));
+    // console.log('📋 利用可能なアバター:', AVATAR_LIST.map(a => ({ id: a.id, name: a.name, gender: a.gender })));
   }
 
   const handleAvatarSelect = (avatar: AvatarData) => {
-    console.log('🎯 アバター選択:', avatar.name, '(ID:', avatar.id, ')');
+    // console.log('🎯 アバター選択:', avatar.name, '(ID:', avatar.id, ')');
     setSelectedAvatar(avatar);
   };
 
   const handleConfirm = () => {
     if (selectedAvatar) {
-      console.log('✅ アバター確定:', selectedAvatar.name, '→ メイン画面に遷移');
+      // console.log('✅ アバター確定:', selectedAvatar.name, '→ メイン画面に遷移');
       router.push(`/?avatar=${selectedAvatar.id}`);
     } else {
-      console.error('❌ アバターが選択されていません');
+      // console.error('❌ アバターが選択されていません');
     }
   };
 
   const handleCancel = () => {
-    console.log('❌ アバター選択をキャンセル → メイン画面に戻る');
+    // console.log('❌ アバター選択をキャンセル → メイン画面に戻る');
     router.push('/');
   };
 
