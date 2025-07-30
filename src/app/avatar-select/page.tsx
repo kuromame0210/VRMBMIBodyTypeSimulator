@@ -208,13 +208,21 @@ function AvatarSelectContent() {
           </div>
 
               {/* アクションボタン */}
-              <div className="flex justify-end">
+              <div className="flex justify-between">
                 <button
                   onClick={handleCancel}
                   className="px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors font-medium"
                 >
                   キャンセル
                 </button>
+                {selectedAvatar && (
+                  <button
+                    onClick={handleConfirm}
+                    className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                  >
+                    このアバターを選択
+                  </button>
+                )}
               </div>
             </>
           )}

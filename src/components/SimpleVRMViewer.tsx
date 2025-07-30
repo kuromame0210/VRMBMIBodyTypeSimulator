@@ -15,6 +15,7 @@ interface SimpleVRMViewerProps {
   age?: number;
   height?: number;
   onSimulationStateChange?: (isRunning: boolean) => void;
+  onSimulationCompletedChange?: (completed: boolean) => void;
   startSimulation?: boolean;
   stopSimulation?: boolean;
 }
@@ -26,6 +27,7 @@ export default function SimpleVRMViewer({
   age = 25, 
   height = 170,
   onSimulationStateChange,
+  onSimulationCompletedChange,
   startSimulation = false,
   stopSimulation = false
 }: SimpleVRMViewerProps) {
@@ -50,6 +52,7 @@ export default function SimpleVRMViewer({
   const [currentFatnessValue, setCurrentFatnessValue] = useState<number>(0.4); // レベル4（0.4）で初期化
   const [autoSimulation, setAutoSimulation] = useState<boolean>(false); // 外部制御に変更
   const [simulationMonth, setSimulationMonth] = useState<number>(0);
+  const [simulationCompleted, setSimulationCompleted] = useState<boolean>(false); // シミュレーション完了状態
   const animationFrameRef = useRef<number | null>(null);
   const simulationTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isExplicitReset = useRef<boolean>(false); // 明示的リセット中フラグ
@@ -661,6 +664,7 @@ export default function SimpleVRMViewer({
     setTimeout(() => {
       setSimulationMonth(0);
       setCurrentStageIndex(0);
+      setSimulationCompleted(false); // ★完了状態もリセット★
       if (animateToTargetFatnessRef.current) {
         animateToTargetFatnessRef.current(0.4, reason);
       }
@@ -682,6 +686,7 @@ export default function SimpleVRMViewer({
     if (startSimulation && !autoSimulation) {
       setCurrentStageIndex(0);
       setSimulationMonth(0);
+      setSimulationCompleted(false); // ★開始時に完了状態をリセット★
       setAutoSimulation(true);
     }
   }, [startSimulation, autoSimulation]);
@@ -700,6 +705,13 @@ export default function SimpleVRMViewer({
       onSimulationStateChange(autoSimulation);
     }
   }, [autoSimulation, onSimulationStateChange]);
+
+  // シミュレーション完了状態変更を親コンポーネントに通知
+  useEffect(() => {
+    if (onSimulationCompletedChange) {
+      onSimulationCompletedChange(simulationCompleted);
+    }
+  }, [simulationCompleted, onSimulationCompletedChange]);
 
   // autoSimulationがfalseになったときにリセット
   useEffect(() => {
@@ -728,8 +740,8 @@ export default function SimpleVRMViewer({
           if (nextIndex >= timeStages.length) {
             // console.log('🏁 シミュレーション完了');
             setAutoSimulation(false);
-            // 統一的なリセット処理を使用
-            executeReset(`シミュレーション完了: 初期値復帰`, 1000);
+            setSimulationCompleted(true); // ★完了状態に設定★
+            // ★自動リセットは行わず、ユーザーの明示的な操作を待つ★
             return timeStages.length - 1;
           }
           

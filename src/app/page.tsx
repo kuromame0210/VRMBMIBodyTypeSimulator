@@ -42,6 +42,7 @@ function HomeContent() {
   const [futureBMI, setFutureBMI] = useState<Array<{ period: number; weight: number; bmi: number }>>([]);
   const [isAnimating, setIsAnimating] = useState(false);
   const [isSimulationRunning, setIsSimulationRunning] = useState(false);
+  const [simulationCompleted, setSimulationCompleted] = useState(false);
   const [startSimulation, setStartSimulation] = useState(false);
   const [stopSimulation, setStopSimulation] = useState(false);
 
@@ -89,10 +90,18 @@ function HomeContent() {
     if (isSimulationRunning) {
       // console.log('🛑 未来予測を中止');
       setStopSimulation(true);
+    } else if (simulationCompleted) {
+      // console.log('🔄 リセット実行');
+      setStopSimulation(true); // リセット処理を実行
+      setSimulationCompleted(false);
     } else {
       // console.log('🔮 未来予測を開始');
       setStartSimulation(true);
     }
+  };
+
+  const handleSimulationCompletedChange = (completed: boolean) => {
+    setSimulationCompleted(completed);
   };
 
 
@@ -175,6 +184,7 @@ function HomeContent() {
               onAnimationStateChange={handleAnimationStateChange}
               onPredictionButtonClick={handlePredictionButtonClick}
               isSimulationRunning={isSimulationRunning}
+              simulationCompleted={simulationCompleted}
             />
           </div>
           
@@ -190,6 +200,7 @@ function HomeContent() {
                   height={userData.height}
                   dailySurplusCalories={userData.excessCalories === '少ない' ? -100 : userData.excessCalories === '多い' ? 100 : 0}
                   onSimulationStateChange={handleSimulationStateChange}
+                  onSimulationCompletedChange={handleSimulationCompletedChange}
                   startSimulation={startSimulation}
                   stopSimulation={stopSimulation}
                 />

@@ -16,6 +16,7 @@ interface BMICalculatorProps {
   onAnimationStateChange?: (isAnimating: boolean) => void;
   onPredictionButtonClick?: () => void;
   isSimulationRunning?: boolean;
+  simulationCompleted?: boolean;
 }
 
 export default function BMICalculator({ 
@@ -24,7 +25,8 @@ export default function BMICalculator({
   onUserDataChange, 
   onAnimationStateChange,
   onPredictionButtonClick,
-  isSimulationRunning = false
+  isSimulationRunning = false,
+  simulationCompleted = false
 }: BMICalculatorProps) {
   const [userData, setUserData] = useState({
     height: 170,
@@ -252,10 +254,17 @@ export default function BMICalculator({
         className={`w-full py-3 rounded-md font-medium mb-6 transition-colors ${
           isSimulationRunning
             ? 'bg-red-500 text-white hover:bg-red-600'
+            : simulationCompleted
+            ? 'bg-blue-500 text-white hover:bg-blue-600'
             : 'bg-green-500 text-white hover:bg-green-600'
         }`}
       >
-        {isSimulationRunning ? '⏹️ 中止する' : '🔮 未来を予測する'}
+        {isSimulationRunning 
+          ? '⏹️ 中止する' 
+          : simulationCompleted 
+          ? '🔄 リセットする' 
+          : '🔮 未来を予測する'
+        }
       </button>
 
       {futurePredictions.length > 0 && (
