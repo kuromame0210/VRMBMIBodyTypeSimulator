@@ -66,7 +66,7 @@ function AvatarSelectContent() {
           <div className="flex justify-between items-center mb-6">
             <h1 className="text-3xl font-bold text-gray-800">アバター選択</h1>
             <div className="flex items-center space-x-4">
-              <button
+              {/* <button
                 onClick={() => setShowThumbnailManager(!showThumbnailManager)}
                 className={`px-4 py-2 rounded-lg font-medium transition-colors ${
                   showThumbnailManager 
@@ -75,7 +75,7 @@ function AvatarSelectContent() {
                 }`}
               >
                 🛠️ サムネイル管理
-              </button>
+              </button> */}
               <button
                 onClick={handleCancel}
                 className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
