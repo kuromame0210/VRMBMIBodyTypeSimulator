@@ -693,11 +693,17 @@ export default function SimpleVRMViewer({
 
   // 外部からのシミュレーション停止制御
   useEffect(() => {
-    if (stopSimulation && autoSimulation) {
-      setManualStop(true);
-      setAutoSimulation(false);
+    if (stopSimulation) {
+      if (autoSimulation) {
+        // シミュレーション実行中の中止
+        setManualStop(true);
+        setAutoSimulation(false);
+      } else if (simulationCompleted) {
+        // シミュレーション完了後のリセット
+        executeReset(`明示的リセット: 初期値復帰`, 200);
+      }
     }
-  }, [stopSimulation, autoSimulation]);
+  }, [stopSimulation, autoSimulation, simulationCompleted, executeReset]);
 
   // シミュレーション状態変更を親コンポーネントに通知
   useEffect(() => {
