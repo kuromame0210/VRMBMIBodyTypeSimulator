@@ -342,23 +342,27 @@ export default function SimpleVRMViewer({
     }
   }, [activeFaceFeatures, autoSimulation, faceDataEnabled]);
 
-  // 初期読み込み完了後に顔特徴を確実に適用（ON/OFF切り替えをシミュレート）
+  // 初期読み込み完了後に顔特徴を確実に適用（最適化済み - 最小遅延）
   useEffect(() => {
     if (vrmLoaded && activeFaceFeatures && faceDataEnabled && !initialFaceApplied && !autoSimulation) {
-      console.log('🎭 初期読み込み完了: 顔特徴適用を実行');
+      console.log('🎭 初期読み込み完了: 顔特徴適用を実行（最適化済み）');
       
-      // 少し遅延してから確実に適用
+      // 最小遅延で確実に適用（レンダリング完了を待つ最小限の遅延）
       setTimeout(() => {
         if (vrmRef.current) {
+          console.log('🎭 初期適用開始: 一度クリアしてから適用');
           // 一度クリアしてから適用（ON/OFF切り替えと同じ効果）
           clearFaceBlendShapes(vrmRef.current);
-          setTimeout(() => {
-            applyFaceBlendShapes(vrmRef.current, activeFaceFeatures);
-            setInitialFaceApplied(true);
-            console.log('✅ 初期読み込み時の顔特徴適用完了');
-          }, 100);
+          // レンダリング1フレーム待機後に適用
+          requestAnimationFrame(() => {
+            if (vrmRef.current && activeFaceFeatures) {
+              applyFaceBlendShapes(vrmRef.current, activeFaceFeatures);
+              setInitialFaceApplied(true);
+              console.log('✅ 初期読み込み時の顔特徴適用完了（最適化済み）');
+            }
+          });
         }
-      }, 1000);
+      }, 200); // 1000ms → 200ms に短縮
     }
   }, [vrmLoaded, activeFaceFeatures, faceDataEnabled, initialFaceApplied, autoSimulation]);
 
@@ -425,7 +429,6 @@ export default function SimpleVRMViewer({
           // console.log('✅ GLTF読み込み完了');
           currentVrm = { scene: gltf.scene, userData: gltf };
           vrmRef.current = currentVrm;
-          setVrmLoaded(true);
           scene.add(gltf.scene);
           
           // シミュレーション中は現在の値を保持、そうでなければ初期値を適用
@@ -435,24 +438,23 @@ export default function SimpleVRMViewer({
             setCurrentFatnessValue(0.4);
           }
           
-          // VRMPreview方式: 顔特徴BlendShapeを適用（開発用ON/OFF切り替え対応）
-          // 初期読み込み時の確実な適用のため少し遅延
-          setTimeout(() => {
-            if (faceDataEnabled && activeFaceFeatures) {
-              console.log('🎭 GLTF読み込み完了後の顔特徴適用開始（VRMPreview方式）');
-              applyFaceBlendShapes(gltf.scene ? { scene: gltf.scene } : vrm, activeFaceFeatures);
-            }
-          }, 500);
+          // VRMPreview方式: 顔特徴BlendShapeを即座適用（最適化済み）
+          if (faceDataEnabled && activeFaceFeatures) {
+            console.log('🎭 GLTF読み込み完了: VRMPreview方式で即座適用開始');
+            applyFaceBlendShapes(currentVrm, activeFaceFeatures);
+          }
           
           tryInitGLTFAnimations(gltf);
           setAnimationStatus('GLTFファイル読み込み完了');
+          
+          // 読み込み完了状態を最後に設定（顔特徴適用完了後）
+          setVrmLoaded(true);
         }
         return;
       }
       currentVrm = vrm;
       vrmRef.current = vrm;
       // console.log('✅ VRM読み込み完了');
-      setVrmLoaded(true);
       scene.add(vrm.scene);
       
       VRMUtils.rotateVRM0(vrm);
@@ -464,17 +466,17 @@ export default function SimpleVRMViewer({
         setCurrentFatnessValue(0.4);
       }
       
-      // VRMPreview方式: 顔特徴BlendShapeを適用（開発用ON/OFF切り替え対応）
-      // 初期読み込み時の確実な適用のため少し遅延
-      setTimeout(() => {
-        if (faceDataEnabled && activeFaceFeatures) {
-          console.log('🎭 VRM読み込み完了後の顔特徴適用開始（VRMPreview方式）');
-          applyFaceBlendShapes(currentVrm, activeFaceFeatures);
-        }
-      }, 500);
+      // VRMPreview方式: 顔特徴BlendShapeを即座適用（最適化済み）
+      if (faceDataEnabled && activeFaceFeatures) {
+        console.log('🎭 VRM読み込み完了: VRMPreview方式で即座適用開始');
+        applyFaceBlendShapes(currentVrm, activeFaceFeatures);
+      }
       
       initAnimationClip();
       setAnimationStatus('VRM読み込み完了');
+      
+      // 読み込み完了状態を最後に設定（顔特徴適用完了後）
+      setVrmLoaded(true);
     }
 
     // 標準glTFアニメーションの読み込み
