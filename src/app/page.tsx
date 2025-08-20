@@ -9,6 +9,7 @@ import { useAvatarState } from '@/hooks/useAvatarState';
 import PageWrapper from '@/components/PageWrapper';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import AvatarCard from '@/components/AvatarCard';
+import FaceDataIndicator from '@/components/FaceDataIndicator';
 
 
 // VRMViewer
@@ -134,7 +135,10 @@ function HomeContent() {
   return (
     <div className="min-h-screen bg-gray-100 p-4">
       <div className="max-w-7xl mx-auto">
-        <h1 className="text-3xl font-bold text-center mb-8 text-gray-800">VRM BMI体型シミュレーター</h1>
+        <div className="flex items-center justify-center mb-8">
+          <h1 className="text-3xl font-bold text-gray-800 mr-4">VRM BMI体型シミュレーター</h1>
+          <FaceDataIndicator />
+        </div>
         
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 h-[80vh]">
           {/* 左側: BMI計算フォーム */}
@@ -160,7 +164,7 @@ function HomeContent() {
                   avatarData={selectedAvatar}
                   age={userData.age}
                   height={userData.height}
-                  faceFeatures={currentFaceFeatures}
+                  faceFeatures={currentFaceFeatures || undefined}
                   dailySurplusCalories={userData.excessCalories === '少ない' ? -100 : userData.excessCalories === '多い' ? 100 : 0}
                   onSimulationStateChange={handleSimulationStateChange}
                   onSimulationCompletedChange={handleSimulationCompletedChange}

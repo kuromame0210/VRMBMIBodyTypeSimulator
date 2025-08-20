@@ -10,6 +10,8 @@ import { calculateBMI } from '../utils/calculations';
 import { SavedFaceFeatures, getFaceFeatures } from '../utils/localStorage';
 import { BlendShapeConverter } from '../utils/blendshape-converter';
 import { BlendShapeConfig } from '../types/blendshape';
+// 開発用デバッグコンポーネント - 本番環境では削除すること
+import FaceDataToggle from './FaceDataToggle';
 
 interface SimpleVRMViewerProps {
   avatarData: AvatarData;
@@ -71,9 +73,250 @@ export default function SimpleVRMViewer({
 
   // VRM読み込み状態を管理
   const [vrmLoaded, setVrmLoaded] = useState<boolean>(false);
+  const [initialFaceApplied, setInitialFaceApplied] = useState<boolean>(false);
   
   // 顔特徴データを管理
   const [activeFaceFeatures, setActiveFaceFeatures] = useState<SavedFaceFeatures | null>(null);
+  
+  // 開発用デバッグ: 表情データ適用ON/OFF切り替え - 本番環境では削除すること
+  const [faceDataEnabled, setFaceDataEnabled] = useState<boolean>(true);
+
+  // VRMPreview方式: 詳細な顔特徴適用ロジック（複数パスアプローチ + BlendShape反映検証）
+  const applyFaceBlendShapes = useCallback((vrm: any, faceData: SavedFaceFeatures) => {
+    if (!vrm || !faceData || !faceData.features) return;
+
+    const features = faceData.features;
+    
+    try {
+      // WSL仕様: expressionManager方式とmorphTarget方式の両方をサポート
+      let appliedCount = 0;
+      const appliedBlendShapes: Array<{name: string, inputValue: number, calculatedValue: number, finalValue: number, method: string}> = [];
+      
+      console.log('🔍 === VRMPreview方式BlendShape反映検証開始 ===');
+      console.log('📥 入力顔特徴値:', {
+        eyeWidth: features.eyeWidth?.toFixed(4),
+        eyeHeight: features.eyeHeight?.toFixed(4), 
+        mouthWidth: features.mouthWidth?.toFixed(4),
+        noseWidth: features.noseWidth?.toFixed(4),
+        jawWidth: features.jawWidth?.toFixed(4)
+      });
+      
+      // Pass 1: VRM expressionManager方式（標準VRM）
+      if (vrm.expressionManager) {
+        const expressions = vrm.expressionManager.expressions;
+        console.log('🎭 VRM expressionManager検出、標準VRM方式で適用中...');
+        
+        // WSL準拠: 詳細な目の調整（複数パラメータ）
+        if (expressions.eye_wide) {
+          const inputValue = features.eyeWidth;
+          const calculatedValue = inputValue * 15 - 0.3;
+          const finalValue = Math.min(Math.max(calculatedValue, 0), 1.0);
+          const previousValue = expressions.eye_wide.weight;
+          expressions.eye_wide.weight = finalValue;
+          appliedBlendShapes.push({
+            name: 'eye_wide', 
+            inputValue, 
+            calculatedValue, 
+            finalValue, 
+            method: 'expressionManager'
+          });
+          console.log(`🎯 eye_wide: 入力${inputValue.toFixed(4)} → 計算${calculatedValue.toFixed(4)} → 最終${finalValue.toFixed(4)} (前値: ${previousValue.toFixed(4)})`);
+          if (finalValue > 0) appliedCount++;
+        }
+        
+        // WSL準拠: 詳細な口の調整（閾値調整済み）
+        if (expressions.mouth_wide) {
+          const inputValue = features.mouthWidth;
+          const calculatedValue = (inputValue - 0.3) * 3;
+          const finalValue = Math.min(Math.max(calculatedValue, 0), 1.0);
+          const previousValue = expressions.mouth_wide.weight;
+          expressions.mouth_wide.weight = finalValue;
+          appliedBlendShapes.push({
+            name: 'mouth_wide', 
+            inputValue, 
+            calculatedValue, 
+            finalValue, 
+            method: 'expressionManager'
+          });
+          console.log(`🎯 mouth_wide: 入力${inputValue.toFixed(4)} → 計算${calculatedValue.toFixed(4)} → 最終${finalValue.toFixed(4)} (前値: ${previousValue.toFixed(4)})`);
+          if (finalValue > 0) appliedCount++;
+        }
+        
+        // WSL準拠: 鼻の調整（新規追加）
+        if (expressions.nose_wide) {
+          const inputValue = features.noseWidth;
+          const calculatedValue = (inputValue - 0.15) * 8;
+          const finalValue = Math.min(Math.max(calculatedValue, 0), 1.0);
+          const previousValue = expressions.nose_wide.weight;
+          expressions.nose_wide.weight = finalValue;
+          appliedBlendShapes.push({
+            name: 'nose_wide', 
+            inputValue, 
+            calculatedValue, 
+            finalValue, 
+            method: 'expressionManager'
+          });
+          console.log(`🎯 nose_wide: 入力${inputValue.toFixed(4)} → 計算${calculatedValue.toFixed(4)} → 最終${finalValue.toFixed(4)} (前値: ${previousValue.toFixed(4)})`);
+          if (finalValue > 0) appliedCount++;
+        }
+        
+        vrm.expressionManager.update();
+        console.log('✅ expressionManager.update() 実行完了');
+      }
+      
+      // Pass 2: 直接morphTarget方式（GLBモデル対応）
+      const scene = vrm.scene || vrm.userData?.scene || vrm;
+      if (scene) {
+        console.log('🎮 直接morphTarget方式で追加適用中...');
+        
+        scene.traverse((object: any) => {
+          if (object.isSkinnedMesh && object.morphTargetDictionary && object.morphTargetInfluences) {
+            console.log(`📦 morphTarget対応メッシュ発見: ${object.name || '名前なし'}`);
+            console.log(`   利用可能BlendShape: ${Object.keys(object.morphTargetDictionary).slice(0, 10).join(', ')}...`);
+            
+            // WSL準拠: Mouth_Wide特別処理
+            const mouthWideIndex = object.morphTargetDictionary['Mouth_Wide'];
+            if (mouthWideIndex !== undefined) {
+              const inputValue = features.mouthWidth;
+              const calculatedValue = (inputValue - 0.3) * 2.5;
+              const finalValue = Math.min(Math.max(calculatedValue, 0), 1.0);
+              const previousValue = object.morphTargetInfluences[mouthWideIndex];
+              object.morphTargetInfluences[mouthWideIndex] = finalValue;
+              appliedBlendShapes.push({
+                name: 'Mouth_Wide', 
+                inputValue, 
+                calculatedValue, 
+                finalValue, 
+                method: 'morphTarget'
+              });
+              console.log(`🎯 Mouth_Wide[${mouthWideIndex}]: 入力${inputValue.toFixed(4)} → 計算${calculatedValue.toFixed(4)} → 最終${finalValue.toFixed(4)} (前値: ${previousValue.toFixed(4)})`);
+              if (finalValue > 0) appliedCount++;
+            }
+            
+            // WSL準拠: Eye_Close系の調整
+            ['Eye_Close', 'Eye_Close_L', 'Eye_Close_R'].forEach(eyeShape => {
+              const index = object.morphTargetDictionary[eyeShape];
+              if (index !== undefined) {
+                const inputValue = features.eyeHeight;
+                const calculatedValue = inputValue * 8 - 0.2;
+                const finalValue = Math.min(Math.max(calculatedValue, 0), 0.3); // 軽微な調整
+                const previousValue = object.morphTargetInfluences[index];
+                object.morphTargetInfluences[index] = finalValue;
+                appliedBlendShapes.push({
+                  name: eyeShape, 
+                  inputValue, 
+                  calculatedValue, 
+                  finalValue, 
+                  method: 'morphTarget'
+                });
+                console.log(`🎯 ${eyeShape}[${index}]: 入力${inputValue.toFixed(4)} → 計算${calculatedValue.toFixed(4)} → 最終${finalValue.toFixed(4)} (前値: ${previousValue.toFixed(4)})`);
+                if (finalValue > 0) appliedCount++;
+              }
+            });
+            
+            // WSL準拠: Nose系の詳細調整
+            ['Nose_Wide', 'Nose_Narrow'].forEach(noseShape => {
+              const index = object.morphTargetDictionary[noseShape];
+              if (index !== undefined) {
+                const inputValue = features.noseWidth;
+                const calculatedValue = noseShape === 'Nose_Wide' 
+                  ? (inputValue - 0.16) * 6
+                  : (0.14 - inputValue) * 6;
+                const finalValue = Math.min(Math.max(calculatedValue, 0), 0.8);
+                const previousValue = object.morphTargetInfluences[index];
+                object.morphTargetInfluences[index] = finalValue;
+                appliedBlendShapes.push({
+                  name: noseShape, 
+                  inputValue, 
+                  calculatedValue, 
+                  finalValue, 
+                  method: 'morphTarget'
+                });
+                console.log(`🎯 ${noseShape}[${index}]: 入力${inputValue.toFixed(4)} → 計算${calculatedValue.toFixed(4)} → 最終${finalValue.toFixed(4)} (前値: ${previousValue.toFixed(4)})`);
+                if (finalValue > 0) appliedCount++;
+              }
+            });
+            
+            // 🆕 NEW: 顎の形状調整（Chin_Sharp/Chin_Round）
+            ['Chin_Sharp', 'Chin_Round'].forEach(chinShape => {
+              const index = object.morphTargetDictionary[chinShape];
+              if (index !== undefined && features.jawWidth !== undefined) {
+                const inputValue = features.jawWidth;
+                // jawWidthが高い値（0.5以上）= 角ばった顎 → Chin_Sharp
+                // jawWidthが低い値（0.3以下）= 丸い顎 → Chin_Round  
+                const calculatedValue = chinShape === 'Chin_Sharp' 
+                  ? (inputValue - 0.3) * 2.5  // 0.3以上で効果
+                  : (0.5 - inputValue) * 2.5; // 0.5以下で効果
+                const finalValue = Math.min(Math.max(calculatedValue, 0), 1.0);
+                const previousValue = object.morphTargetInfluences[index];
+                object.morphTargetInfluences[index] = finalValue;
+                appliedBlendShapes.push({
+                  name: chinShape, 
+                  inputValue, 
+                  calculatedValue, 
+                  finalValue, 
+                  method: 'morphTarget'
+                });
+                console.log(`🎯🔹 ${chinShape}[${index}]: 入力${inputValue.toFixed(4)} → 計算${calculatedValue.toFixed(4)} → 最終${finalValue.toFixed(4)} (前値: ${previousValue.toFixed(4)})`);
+                if (finalValue > 0) appliedCount++;
+              }
+            });
+          }
+        });
+      }
+      
+      // BlendShape反映結果の総合検証
+      console.log('📊 === VRMPreview方式BlendShape反映結果検証 ===');
+      console.log(`✅ 適用済みBlendShape総数: ${appliedBlendShapes.length}個`);
+      console.log(`🔧 値が変更されたBlendShape: ${appliedCount}個`);
+      
+      // 効果的に反映されたBlendShapeの詳細
+      const effectiveBlendShapes = appliedBlendShapes.filter(bs => bs.finalValue > 0.01);
+      console.log(`🎯 効果的反映 (>0.01): ${effectiveBlendShapes.length}個`);
+      effectiveBlendShapes.forEach(bs => {
+        console.log(`   ${bs.name}: ${bs.finalValue.toFixed(3)} (${bs.method})`);
+      });
+      
+      // 反映されなかったBlendShapeの警告
+      const ineffectiveBlendShapes = appliedBlendShapes.filter(bs => bs.finalValue <= 0.01);
+      if (ineffectiveBlendShapes.length > 0) {
+        console.warn(`⚠️ 反映されなかったBlendShape: ${ineffectiveBlendShapes.length}個`);
+        ineffectiveBlendShapes.forEach(bs => {
+          console.warn(`   ${bs.name}: 入力${bs.inputValue.toFixed(4)} → 最終${bs.finalValue.toFixed(4)} (閾値以下)`);
+        });
+      }
+      
+      console.log(`✅ VRMPreview方式顔特徴適用完了: ${appliedCount}個のパラメータを調整 (検証済み)`);
+      
+    } catch (error) {
+      console.warn('❌ VRMPreview方式顔特徴適用エラー:', error);
+    }
+  }, []);
+
+  // 開発用デバッグ: 顔特徴BlendShapeクリア関数 - 本番環境では削除すること
+  const clearFaceBlendShapes = useCallback((vrm: any) => {
+    if (!vrm) return;
+
+    const scene = vrm.scene || vrm.userData?.scene || vrm;
+    
+    if (scene && scene.traverse) {
+      scene.traverse((object: any) => {
+        if (object.isSkinnedMesh && object.morphTargetDictionary && object.morphTargetInfluences) {
+          // 顔系のBlendShapeをゼロにリセット（体型系は除外）
+          Object.keys(object.morphTargetDictionary).forEach(shapeName => {
+            // 体型系のBlendShapeは除外
+            if (!['fatness', 'fat', 'belly', 'weight'].includes(shapeName)) {
+              const shapeIndex = object.morphTargetDictionary[shapeName];
+              if (shapeIndex !== undefined) {
+                object.morphTargetInfluences[shapeIndex] = 0;
+                console.log(`🎭 顔特徴BlendShapeクリア: ${shapeName} = 0`);
+              }
+            }
+          });
+        }
+      });
+    }
+  }, []);
 
   // 顔特徴データの初期化・更新
   useEffect(() => {
@@ -87,12 +330,37 @@ export default function SimpleVRMViewer({
     }
   }, [faceFeatures]);
 
-  // 顔特徴データ変更時にBlendShapeを再適用
+  // 顔特徴データ変更時にBlendShapeを再適用（開発用ON/OFF切り替え対応）
   useEffect(() => {
-    if (vrmRef.current && activeFaceFeatures && !autoSimulation) {
-      applyFaceBlendShapes(vrmRef.current, activeFaceFeatures);
+    if (vrmRef.current) {  // autoSimulation条件を削除してシミュレーション中も適用
+      if (faceDataEnabled && activeFaceFeatures) {
+        applyFaceBlendShapes(vrmRef.current, activeFaceFeatures);
+      } else if (!faceDataEnabled) {
+        // 表情データを無効化する場合は、顔のBlendShapeをリセット
+        clearFaceBlendShapes(vrmRef.current);
+      }
     }
-  }, [activeFaceFeatures, autoSimulation]);
+  }, [activeFaceFeatures, autoSimulation, faceDataEnabled]);
+
+  // 初期読み込み完了後に顔特徴を確実に適用（ON/OFF切り替えをシミュレート）
+  useEffect(() => {
+    if (vrmLoaded && activeFaceFeatures && faceDataEnabled && !initialFaceApplied && !autoSimulation) {
+      console.log('🎭 初期読み込み完了: 顔特徴適用を実行');
+      
+      // 少し遅延してから確実に適用
+      setTimeout(() => {
+        if (vrmRef.current) {
+          // 一度クリアしてから適用（ON/OFF切り替えと同じ効果）
+          clearFaceBlendShapes(vrmRef.current);
+          setTimeout(() => {
+            applyFaceBlendShapes(vrmRef.current, activeFaceFeatures);
+            setInitialFaceApplied(true);
+            console.log('✅ 初期読み込み時の顔特徴適用完了');
+          }, 100);
+        }
+      }, 1000);
+    }
+  }, [vrmLoaded, activeFaceFeatures, faceDataEnabled, initialFaceApplied, autoSimulation]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -167,10 +435,14 @@ export default function SimpleVRMViewer({
             setCurrentFatnessValue(0.4);
           }
           
-          // 顔特徴BlendShapeを適用
-          if (activeFaceFeatures) {
-            applyFaceBlendShapes(vrm, activeFaceFeatures);
-          }
+          // VRMPreview方式: 顔特徴BlendShapeを適用（開発用ON/OFF切り替え対応）
+          // 初期読み込み時の確実な適用のため少し遅延
+          setTimeout(() => {
+            if (faceDataEnabled && activeFaceFeatures) {
+              console.log('🎭 GLTF読み込み完了後の顔特徴適用開始（VRMPreview方式）');
+              applyFaceBlendShapes(gltf.scene ? { scene: gltf.scene } : vrm, activeFaceFeatures);
+            }
+          }, 500);
           
           tryInitGLTFAnimations(gltf);
           setAnimationStatus('GLTFファイル読み込み完了');
@@ -192,10 +464,14 @@ export default function SimpleVRMViewer({
         setCurrentFatnessValue(0.4);
       }
       
-      // 顔特徴BlendShapeを適用
-      if (activeFaceFeatures) {
-        applyFaceBlendShapes(currentVrm, activeFaceFeatures);
-      }
+      // VRMPreview方式: 顔特徴BlendShapeを適用（開発用ON/OFF切り替え対応）
+      // 初期読み込み時の確実な適用のため少し遅延
+      setTimeout(() => {
+        if (faceDataEnabled && activeFaceFeatures) {
+          console.log('🎭 VRM読み込み完了後の顔特徴適用開始（VRMPreview方式）');
+          applyFaceBlendShapes(currentVrm, activeFaceFeatures);
+        }
+      }, 500);
       
       initAnimationClip();
       setAnimationStatus('VRM読み込み完了');
@@ -304,30 +580,7 @@ export default function SimpleVRMViewer({
       }
     }
 
-    // 顔特徴BlendShape適用関数
-    function applyFaceBlendShapes(vrm: any, faceData: SavedFaceFeatures) {
-      if (!vrm || !faceData) return;
 
-      const scene = vrm.scene || vrm.userData?.scene || vrm;
-      
-      if (scene && scene.traverse && faceData.blendShapeValues) {
-        scene.traverse((object: any) => {
-          if (object.isSkinnedMesh && object.morphTargetDictionary) {
-            // 保存されたBlendShape値を適用
-            Object.entries(faceData.blendShapeValues).forEach(([shapeName, value]) => {
-              const shapeIndex = object.morphTargetDictionary[shapeName];
-              if (shapeIndex !== undefined && object.morphTargetInfluences) {
-                // 値を-1〜1から0〜1にクランプ
-                const clampedValue = Math.max(0, Math.min(1, (value + 1) / 2));
-                object.morphTargetInfluences[shapeIndex] = clampedValue;
-                
-                console.log(`🎭 顔特徴BlendShape適用: ${shapeName} = ${clampedValue.toFixed(3)}`);
-              }
-            });
-          }
-        });
-      }
-    }
 
     // BMI + 顔特徴の統合BlendShape適用関数
     function applyAllBlendShapes(vrm: any, bmi: number, faceData?: SavedFaceFeatures) {
@@ -336,8 +589,8 @@ export default function SimpleVRMViewer({
       // 1. BMI → fatness適用 (既存)
       updateFatnessForBMI(vrm, bmi);
       
-      // 2. 顔特徴 → 顔パーツBlendShape適用 (新規)
-      if (faceData) {
+      // 2. 顔特徴 → 顔パーツBlendShape適用 (新規・開発用ON/OFF切り替え対応)
+      if (faceDataEnabled && faceData) {
         applyFaceBlendShapes(vrm, faceData);
       }
     }
@@ -347,8 +600,10 @@ export default function SimpleVRMViewer({
     loader.register((parser) => new VRMLoaderPlugin(parser));
     loader.register((parser) => new VRMAnimationLoaderPlugin(parser));
 
-    // VRMファイルの読み込み
-    load(avatarData.vrmPath);
+    // ★ デバッグ用の一時的な変更 - 顔特徴BlendShape対応確認のため ★
+    // 通常: load(avatarData.vrmPath);
+    // デバッグ: 選択アバターに関係なくfemale_01_ver2.glbを強制使用
+    load('/vrm-models/female_01_ver2.glb');
     
     // GLBファイルの場合は外部VRMAファイルは不要（内蔵アニメーション使用）
     // VRMファイルの場合のみ外部VRMAファイルをロード
@@ -379,7 +634,7 @@ export default function SimpleVRMViewer({
     // BMI変更時の更新（統合BlendShape制御）
     const handleBMIChange = () => {
       if (currentVrm && !autoSimulation) {
-        applyAllBlendShapes(currentVrm, currentBMI, activeFaceFeatures);
+        applyAllBlendShapes(currentVrm, currentBMI, activeFaceFeatures || undefined);
       }
     };
 
@@ -507,6 +762,11 @@ export default function SimpleVRMViewer({
       setCurrentFatnessValue(currentValue);
       updateFatnessBlendShape(currentValue, source);
       
+      // アニメーション中も顔特徴を再適用
+      if (faceDataEnabled && activeFaceFeatures && vrmRef.current) {
+        applyFaceBlendShapes(vrmRef.current, activeFaceFeatures);
+      }
+      
       if (progress < 1) {
         animationFrameRef.current = requestAnimationFrame(animate);
       } else {
@@ -514,6 +774,10 @@ export default function SimpleVRMViewer({
         // アニメーション完了時に確実に最終値を設定
         setCurrentFatnessValue(targetValue);
         updateFatnessBlendShape(targetValue, source + " (完了)");
+        // アニメーション完了時も顔特徴を再適用
+        if (faceDataEnabled && activeFaceFeatures && vrmRef.current) {
+          applyFaceBlendShapes(vrmRef.current, activeFaceFeatures);
+        }
         console.log(`✅ アニメーション完了: ${targetValue.toFixed(3)} (source: ${source})`);
       }
     };
@@ -879,6 +1143,14 @@ export default function SimpleVRMViewer({
   return (
     <div className="w-full h-full relative">
       <div ref={containerRef} className="w-full h-full" />
+      
+      {/* 開発用デバッグ: 表情データ切り替えボタン - 本番環境では削除すること */}
+      {process.env.NODE_ENV === 'development' && (
+        <FaceDataToggle 
+          onToggle={setFaceDataEnabled} 
+          initialEnabled={faceDataEnabled}
+        />
+      )}
       
       {/* シンプルなステータス表示 */}
       <div className="absolute top-4 left-4 bg-black bg-opacity-75 text-white p-2 rounded text-sm">
