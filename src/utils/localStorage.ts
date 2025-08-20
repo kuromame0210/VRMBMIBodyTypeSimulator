@@ -87,3 +87,35 @@ export const createFaceFeatureData = (
     photoDataUrl
   };
 };
+
+// 表情情報の存在確認とステータス取得
+export const getFacialExpressionStatus = () => {
+  const faceFeatures = getFaceFeatures();
+  return {
+    hasFaceData: !!faceFeatures,
+    timestamp: faceFeatures?.timestamp || null,
+    lastUpdated: faceFeatures?.timestamp ? new Date(faceFeatures.timestamp).toLocaleString('ja-JP') : null
+  };
+};
+
+// アバター選択情報の存在確認とステータス取得
+export const getAvatarSelectionStatus = () => {
+  const selectedAvatarId = getSelectedAvatar();
+  return {
+    hasCustomSelection: !!selectedAvatarId,
+    avatarId: selectedAvatarId,
+    isDefaultAvatar: !selectedAvatarId
+  };
+};
+
+// 全体的なローカルストレージ状態の取得
+export const getLocalStorageStatus = () => {
+  const faceStatus = getFacialExpressionStatus();
+  const avatarStatus = getAvatarSelectionStatus();
+  
+  return {
+    face: faceStatus,
+    avatar: avatarStatus,
+    hasAnyData: faceStatus.hasFaceData || avatarStatus.hasCustomSelection
+  };
+};

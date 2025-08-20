@@ -72,13 +72,45 @@ export function useAvatarState() {
   useEffect(() => {
     if (!isClient) return;
     
-    const faceData = getFaceFeatures();
-    setCurrentFaceFeatures(faceData);
+    const loadFaceFeatures = () => {
+      const faceData = getFaceFeatures();
+      setCurrentFaceFeatures(faceData);
+    };
+    
+    // 初回読み込み
+    loadFaceFeatures();
+    
+    // ページのvisibilityが変わった時（他のページから戻ってきた時）に再読み込み
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        loadFaceFeatures();
+      }
+    };
+    
+    // ページにフォーカスが戻った時に再読み込み
+    const handleFocus = () => {
+      loadFaceFeatures();
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
+    
+    // クリーンアップ
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+    };
   }, [isClient]);
 
   const updateSelectedAvatar = (avatar: AvatarData) => {
     setSelectedAvatar(avatar);
     saveSelectedAvatar(avatar.id);
+  };
+
+  // 表情データを手動で再読み込みする関数
+  const refreshFaceFeatures = () => {
+    const faceData = getFaceFeatures();
+    setCurrentFaceFeatures(faceData);
   };
 
   const navigateToFaceAnalysis = () => {
@@ -90,6 +122,8 @@ export function useAvatarState() {
   };
 
   const navigateToHome = (avatarId?: string) => {
+    // ホームに戻る時に表情データを再読み込み
+    refreshFaceFeatures();
     const url = avatarId ? `/?avatar=${avatarId}` : '/';
     router.push(url);
   };
@@ -100,6 +134,7 @@ export function useAvatarState() {
     selectedAvatar,
     currentFaceFeatures,
     updateSelectedAvatar,
+    refreshFaceFeatures,
     navigateToFaceAnalysis,
     navigateToAvatarSelect,
     navigateToHome
