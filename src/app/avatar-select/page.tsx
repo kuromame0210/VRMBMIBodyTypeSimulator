@@ -1,19 +1,23 @@
 'use client';
 
-import { useState, Suspense } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { AVATAR_LIST, AvatarData, getAvatarById, getAvatarsWithFatness, getAvatarsWithFatnessByGender, getDefaultAvatar } from '../../utils/avatarConfig';
-import { saveSelectedAvatar } from '../../utils/localStorage';
-import ThumbnailManager from '../../components/ThumbnailManager';
+import { useState } from 'react';
+import { useAvatarState } from '@/hooks/useAvatarState';
+import { AvatarData, getAvatarsWithFatness, getAvatarsWithFatnessByGender } from '@/utils/avatarConfig';
+import ThumbnailManager from '@/components/ThumbnailManager';
+import PageWrapper from '@/components/PageWrapper';
+import LoadingSpinner from '@/components/LoadingSpinner';
+import AvatarCard from '@/components/AvatarCard';
+import GenderFilter from '@/components/GenderFilter';
 
 function AvatarSelectContent() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const currentAvatarId = searchParams.get('current');
+  const { 
+    isClient, 
+    isInitializing, 
+    selectedAvatar, 
+    updateSelectedAvatar, 
+    navigateToHome 
+  } = useAvatarState();
   
-  const [selectedAvatar, setSelectedAvatar] = useState<AvatarData | null>(
-    currentAvatarId ? getAvatarById(currentAvatarId) || getDefaultAvatar() : getDefaultAvatar()
-  );
   const [genderFilter, setGenderFilter] = useState<'all' | 'male' | 'female'>('all');
   const [showThumbnailManager, setShowThumbnailManager] = useState(false);
 
@@ -39,25 +43,23 @@ function AvatarSelectContent() {
   }
 
   const handleAvatarSelect = (avatar: AvatarData) => {
-    // console.log('🎯 アバター選択:', avatar.name, '(ID:', avatar.id, ')');
-    setSelectedAvatar(avatar);
+    updateSelectedAvatar(avatar);
   };
 
   const handleConfirm = () => {
     if (selectedAvatar) {
-      // console.log('✅ アバター確定:', selectedAvatar.name, '→ メイン画面に遷移');
-      // ローカルストレージに保存
-      saveSelectedAvatar(selectedAvatar.id);
-      router.push(`/?avatar=${selectedAvatar.id}`);
-    } else {
-      // console.error('❌ アバターが選択されていません');
+      navigateToHome(selectedAvatar.id);
     }
   };
 
   const handleCancel = () => {
-    // console.log('❌ アバター選択をキャンセル → メイン画面に戻る');
-    router.push('/');
+    navigateToHome();
   };
+
+  // 初期化中またはクライアントサイドでない場合
+  if (!isClient || isInitializing) {
+    return <LoadingSpinner message="アバター設定を確認中..." />;
+  }
 
   return (
     <div className="min-h-screen bg-gray-100 p-4">
@@ -96,38 +98,10 @@ function AvatarSelectContent() {
           {!showThumbnailManager && (
             <>
               {/* 性別フィルター */}
-              <div className="flex space-x-4 mb-6">
-            <button
-              onClick={() => setGenderFilter('all')}
-              className={`px-6 py-2 rounded-lg font-medium transition-colors ${
-                genderFilter === 'all' 
-                  ? 'bg-blue-600 text-white' 
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-              }`}
-            >
-              すべて ({fatnessAvatars.length}体)
-            </button>
-            <button
-              onClick={() => setGenderFilter('male')}
-              className={`px-6 py-2 rounded-lg font-medium transition-colors ${
-                genderFilter === 'male' 
-                  ? 'bg-blue-600 text-white' 
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-              }`}
-            >
-              男性 ({getAvatarsWithFatnessByGender('male').length}体)
-            </button>
-            <button
-              onClick={() => setGenderFilter('female')}
-              className={`px-6 py-2 rounded-lg font-medium transition-colors ${
-                genderFilter === 'female' 
-                  ? 'bg-blue-600 text-white' 
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-              }`}
-            >
-              女性 ({getAvatarsWithFatnessByGender('female').length}体)
-            </button>
-          </div>
+              <GenderFilter 
+                currentFilter={genderFilter} 
+                onFilterChange={setGenderFilter} 
+              />
 
           {/* 選択されたアバターの詳細 */}
           {selectedAvatar && (
@@ -169,41 +143,12 @@ function AvatarSelectContent() {
           {/* アバターグリッド */}
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-8">
             {filteredAvatars.map((avatar) => (
-              <div
+              <AvatarCard
                 key={avatar.id}
-                onClick={() => handleAvatarSelect(avatar)}
-                className={`bg-white rounded-lg shadow-sm hover:shadow-lg transition-all duration-200 cursor-pointer border-3 ${
-                  selectedAvatar?.id === avatar.id 
-                    ? 'border-blue-500 ring-4 ring-blue-200 scale-105' 
-                    : 'border-gray-200 hover:border-gray-300'
-                }`}
-              >
-                <div className="p-4">
-                  <div className="aspect-square mb-3 bg-gray-100 rounded-lg overflow-hidden">
-                    <img
-                      src={avatar.thumbnailPath}
-                      alt={avatar.name}
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        e.currentTarget.src = '/placeholder-avatar.png';
-                      }}
-                    />
-                  </div>
-                  
-                  <h3 className="font-semibold text-gray-800 mb-2 text-center">
-                    {avatar.name}
-                  </h3>
-                  <p className="text-sm text-gray-600 text-center mb-3 line-clamp-2">
-                    {avatar.description}
-                  </p>
-                  
-                  {selectedAvatar?.id === avatar.id && (
-                    <div className="text-blue-600 text-sm font-medium text-center bg-blue-50 py-1 rounded">
-                      ✓ 選択中
-                    </div>
-                  )}
-                </div>
-              </div>
+                avatar={avatar}
+                isSelected={selectedAvatar?.id === avatar.id}
+                onSelect={handleAvatarSelect}
+              />
             ))}
           </div>
 
@@ -234,13 +179,8 @@ function AvatarSelectContent() {
 
 export default function AvatarSelectPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-gray-100 flex items-center justify-center">
-      <div className="text-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4 mx-auto"></div>
-        <p>読み込み中...</p>
-      </div>
-    </div>}>
+    <PageWrapper loadingMessage="アバター選択画面を読み込み中...">
       <AvatarSelectContent />
-    </Suspense>
+    </PageWrapper>
   );
 }

@@ -16,7 +16,9 @@
       "Bash(git commit:*)",
       "mcp__ide__getDiagnostics",
       "Bash(git push:*)",
-      "Bash(mv:*)"
+      "Bash(mv:*)",
+      "Bash(npx tsc:*)",
+      "Bash(curl:*)"
     ],
     "deny": []
   }

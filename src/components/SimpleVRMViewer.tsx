@@ -2,11 +2,14 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
 import { createVRMAnimationClip, VRMAnimationLoaderPlugin } from '@pixiv/three-vrm-animation';
 import { AvatarData } from '../utils/avatarConfig';
 import { calculateBMI } from '../utils/calculations';
+import { SavedFaceFeatures, getFaceFeatures } from '../utils/localStorage';
+import { BlendShapeConverter } from '../utils/blendshape-converter';
+import { BlendShapeConfig } from '../types/blendshape';
 
 interface SimpleVRMViewerProps {
   avatarData: AvatarData;
@@ -14,6 +17,7 @@ interface SimpleVRMViewerProps {
   dailySurplusCalories?: number;
   age?: number;
   height?: number;
+  faceFeatures?: SavedFaceFeatures;
   onSimulationStateChange?: (isRunning: boolean) => void;
   onSimulationCompletedChange?: (completed: boolean) => void;
   startSimulation?: boolean;
@@ -26,6 +30,7 @@ export default function SimpleVRMViewer({
   dailySurplusCalories = 0, 
   age = 25, 
   height = 170,
+  faceFeatures,
   onSimulationStateChange,
   onSimulationCompletedChange,
   startSimulation = false,
@@ -66,6 +71,28 @@ export default function SimpleVRMViewer({
 
   // VRM読み込み状態を管理
   const [vrmLoaded, setVrmLoaded] = useState<boolean>(false);
+  
+  // 顔特徴データを管理
+  const [activeFaceFeatures, setActiveFaceFeatures] = useState<SavedFaceFeatures | null>(null);
+
+  // 顔特徴データの初期化・更新
+  useEffect(() => {
+    // プロプスで渡された場合はそれを優先
+    if (faceFeatures) {
+      setActiveFaceFeatures(faceFeatures);
+    } else {
+      // ローカルストレージから読み込み
+      const savedFeatures = getFaceFeatures();
+      setActiveFaceFeatures(savedFeatures);
+    }
+  }, [faceFeatures]);
+
+  // 顔特徴データ変更時にBlendShapeを再適用
+  useEffect(() => {
+    if (vrmRef.current && activeFaceFeatures && !autoSimulation) {
+      applyFaceBlendShapes(vrmRef.current, activeFaceFeatures);
+    }
+  }, [activeFaceFeatures, autoSimulation]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -140,6 +167,11 @@ export default function SimpleVRMViewer({
             setCurrentFatnessValue(0.4);
           }
           
+          // 顔特徴BlendShapeを適用
+          if (activeFaceFeatures) {
+            applyFaceBlendShapes(vrm, activeFaceFeatures);
+          }
+          
           tryInitGLTFAnimations(gltf);
           setAnimationStatus('GLTFファイル読み込み完了');
         }
@@ -158,6 +190,11 @@ export default function SimpleVRMViewer({
       updateFatnessBlendShape(targetFatness, `VRM読み込み完了: ${autoSimulation ? 'シミュレーション値保持' : '初期値レベル4'}`);
       if (!autoSimulation) {
         setCurrentFatnessValue(0.4);
+      }
+      
+      // 顔特徴BlendShapeを適用
+      if (activeFaceFeatures) {
+        applyFaceBlendShapes(currentVrm, activeFaceFeatures);
       }
       
       initAnimationClip();
@@ -266,6 +303,44 @@ export default function SimpleVRMViewer({
         });
       }
     }
+
+    // 顔特徴BlendShape適用関数
+    function applyFaceBlendShapes(vrm: any, faceData: SavedFaceFeatures) {
+      if (!vrm || !faceData) return;
+
+      const scene = vrm.scene || vrm.userData?.scene || vrm;
+      
+      if (scene && scene.traverse && faceData.blendShapeValues) {
+        scene.traverse((object: any) => {
+          if (object.isSkinnedMesh && object.morphTargetDictionary) {
+            // 保存されたBlendShape値を適用
+            Object.entries(faceData.blendShapeValues).forEach(([shapeName, value]) => {
+              const shapeIndex = object.morphTargetDictionary[shapeName];
+              if (shapeIndex !== undefined && object.morphTargetInfluences) {
+                // 値を-1〜1から0〜1にクランプ
+                const clampedValue = Math.max(0, Math.min(1, (value + 1) / 2));
+                object.morphTargetInfluences[shapeIndex] = clampedValue;
+                
+                console.log(`🎭 顔特徴BlendShape適用: ${shapeName} = ${clampedValue.toFixed(3)}`);
+              }
+            });
+          }
+        });
+      }
+    }
+
+    // BMI + 顔特徴の統合BlendShape適用関数
+    function applyAllBlendShapes(vrm: any, bmi: number, faceData?: SavedFaceFeatures) {
+      if (!vrm) return;
+      
+      // 1. BMI → fatness適用 (既存)
+      updateFatnessForBMI(vrm, bmi);
+      
+      // 2. 顔特徴 → 顔パーツBlendShape適用 (新規)
+      if (faceData) {
+        applyFaceBlendShapes(vrm, faceData);
+      }
+    }
     
     // ローダーの準備
     const loader = new GLTFLoader();
@@ -301,10 +376,10 @@ export default function SimpleVRMViewer({
     };
     update();
 
-    // BMI変更時の更新
+    // BMI変更時の更新（統合BlendShape制御）
     const handleBMIChange = () => {
       if (currentVrm && !autoSimulation) {
-        updateFatnessForBMI(currentVrm, currentBMI);
+        applyAllBlendShapes(currentVrm, currentBMI, activeFaceFeatures);
       }
     };
 

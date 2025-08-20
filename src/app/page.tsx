@@ -1,14 +1,14 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
-import { AVATAR_LIST, AvatarData, getAvatarById, getDefaultAvatar } from '../utils/avatarConfig';
 import BMICalculator from '../components/BMICalculator';
-import WelcomeScreen from '../components/WelcomeScreen';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { calculateBMI } from '../utils/calculations';
-import { getSelectedAvatar, saveSelectedAvatar, hasSelectedAvatar } from '../utils/localStorage';
+import { useAvatarState } from '@/hooks/useAvatarState';
+import PageWrapper from '@/components/PageWrapper';
+import LoadingSpinner from '@/components/LoadingSpinner';
+import AvatarCard from '@/components/AvatarCard';
 
 
 // VRMViewer
@@ -25,12 +25,14 @@ const SimpleVRMViewer = dynamic(() => import('../components/SimpleVRMViewer'), {
 });
 
 function HomeContent() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const avatarId = searchParams.get('avatar');
-  const [isInitializing, setIsInitializing] = useState(true);
-  
-  const [selectedAvatar, setSelectedAvatar] = useState<AvatarData | null>(null);
+  const { 
+    isClient, 
+    isInitializing, 
+    selectedAvatar, 
+    currentFaceFeatures,
+    navigateToFaceAnalysis,
+    navigateToAvatarSelect
+  } = useAvatarState();
   const [userData, setUserData] = useState({
     height: 170,
     weight: 60,
@@ -45,10 +47,6 @@ function HomeContent() {
   const [simulationCompleted, setSimulationCompleted] = useState(false);
   const [startSimulation, setStartSimulation] = useState(false);
   const [stopSimulation, setStopSimulation] = useState(false);
-
-  const handleOpenAvatarSelect = () => {
-    router.push(`/avatar-select?current=${selectedAvatar.id}`);
-  };
 
   const handleBMIChange = (bmi: number) => {
     setCurrentBMI(bmi);
@@ -105,41 +103,12 @@ function HomeContent() {
   };
 
 
-  // 初期化処理：ローカルストレージチェックとアバター選択状態決定
+  // アバターが変更された時にユーザーデータの性別を同期
   useEffect(() => {
-    const initializeAvatarSelection = () => {
-      // URLパラメータでアバターが指定されている場合
-      if (avatarId) {
-        const avatar = getAvatarById(avatarId);
-        if (avatar) {
-          setSelectedAvatar(avatar);
-          setUserData(prev => ({ ...prev, gender: avatar.gender }));
-          // ローカルストレージに保存
-          saveSelectedAvatar(avatar.id);
-          setIsInitializing(false);
-          return;
-        }
-      }
-
-      // ローカルストレージから既存の選択をチェック
-      const savedAvatarId = getSelectedAvatar();
-      if (savedAvatarId) {
-        const savedAvatar = getAvatarById(savedAvatarId);
-        if (savedAvatar) {
-          setSelectedAvatar(savedAvatar);
-          setUserData(prev => ({ ...prev, gender: savedAvatar.gender }));
-          setIsInitializing(false);
-          return;
-        }
-      }
-
-      // 初回アクセス - アバター選択画面にリダイレクト
-      setIsInitializing(false);
-      router.push('/avatar-select');
-    };
-
-    initializeAvatarSelection();
-  }, [avatarId, router]);
+    if (selectedAvatar) {
+      setUserData(prev => ({ ...prev, gender: selectedAvatar.gender }));
+    }
+  }, [selectedAvatar]);
 
   useEffect(() => {
     if (selectedAvatar) {
@@ -157,16 +126,9 @@ function HomeContent() {
   //   searchParamsString: searchParams.toString()
   // });
 
-  // 初期化中またはアバターが選択されていない場合の処理
-  if (isInitializing || !selectedAvatar) {
-    return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4 mx-auto"></div>
-          <p>アバター設定を確認中...</p>
-        </div>
-      </div>
-    );
+  // SSR時またはクライアント初期化中の処理
+  if (!isClient || isInitializing || !selectedAvatar) {
+    return <LoadingSpinner message="アバター設定を確認中..." />;
   }
 
   return (
@@ -198,6 +160,7 @@ function HomeContent() {
                   avatarData={selectedAvatar}
                   age={userData.age}
                   height={userData.height}
+                  faceFeatures={currentFaceFeatures}
                   dailySurplusCalories={userData.excessCalories === '少ない' ? -100 : userData.excessCalories === '多い' ? 100 : 0}
                   onSimulationStateChange={handleSimulationStateChange}
                   onSimulationCompletedChange={handleSimulationCompletedChange}
@@ -210,36 +173,29 @@ function HomeContent() {
             {/* 右下: アバター詳細・変更ボタン */}
             <div className="bg-white rounded-lg shadow-lg p-6">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-bold text-gray-800">選択中のアバター</h2>
-                <button
-                  onClick={handleOpenAvatarSelect}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
-                >
-                  アバターを変更
-                </button>
+                <h2 className="text-xl font-bold text-gray-800">現在のアバター</h2>
+                <div className="flex space-x-2">
+                  <button
+                    onClick={navigateToFaceAnalysis}
+                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium text-sm"
+                  >
+                    📷 写真から作成
+                  </button>
+                  <button
+                    onClick={navigateToAvatarSelect}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm"
+                  >
+                    🎭 アバター選択
+                  </button>
+                </div>
               </div>
               
-              <div className="flex items-center space-x-4">
-                <div className="w-20 h-20 bg-gray-100 rounded-lg overflow-hidden">
-                  <img
-                    src={selectedAvatar.thumbnailPath}
-                    alt={selectedAvatar.name}
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      e.currentTarget.src = '/placeholder-avatar.png';
-                    }}
-                  />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-gray-800 mb-1">
-                    {selectedAvatar.name}
-                  </h3>
-                  <p className="text-sm text-gray-600 mb-1">{selectedAvatar.description}</p>
-                  <div className="text-xs text-gray-500">
-                    性別: {selectedAvatar.gender === 'male' ? '男性' : '女性'}
-                  </div>
-                </div>
-              </div>
+              <AvatarCard 
+                avatar={selectedAvatar} 
+                isSelected={false} 
+                onSelect={() => {}} 
+                variant="detail" 
+              />
             </div>
           </div>
         </div>
@@ -250,13 +206,8 @@ function HomeContent() {
 
 export default function Home() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-gray-100 flex items-center justify-center">
-      <div className="text-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4 mx-auto"></div>
-        <p>読み込み中...</p>
-      </div>
-    </div>}>
+    <PageWrapper loadingMessage="メインページを読み込み中...">
       <HomeContent />
-    </Suspense>
+    </PageWrapper>
   );
 }
