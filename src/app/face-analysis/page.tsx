@@ -12,8 +12,11 @@ import { BlendShapeConverter } from '@/utils/blendshape-converter';
 import { DEFAULT_BLENDSHAPE_CONFIG } from '@/config/blendshape-config';
 import PageWrapper from '@/components/PageWrapper';
 import LoadingSpinner from '@/components/LoadingSpinner';
+import { useRouter } from 'next/navigation';
 
 function FaceAnalysisContent() {
+  const router = useRouter();
+  
   // Core State
   const [faceLandmarkerImage, setFaceLandmarkerImage] = useState<FaceLandmarker | null>(null);
   const [status, setStatus] = useState('🚀 AIモデルを初期化中...');
@@ -706,6 +709,30 @@ function FaceAnalysisContent() {
                 manualBlendShapeValues={blendShapeStore.currentValues}
                 onAvailableShapesChange={setAvailableBlendShapes}
               />
+            </div>
+            
+            {/* 検出完了後のアクション */}
+            <div className="mt-6 flex justify-center space-x-4">
+              <button
+                onClick={() => router.push('/')}
+                className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold shadow-lg transition-colors duration-200"
+              >
+                ✅ 完了してホームに戻る
+              </button>
+              <button
+                onClick={() => {
+                  setPhotoFeatures(null);
+                  setUploadedImage(null);
+                  setIsNewImageUploaded(false);
+                  setStatus('✅ 準備完了！新しい写真をアップロードして顔解析を開始できます');
+                  if (fileInputRef.current) {
+                    fileInputRef.current.value = '';
+                  }
+                }}
+                className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold shadow-lg transition-colors duration-200"
+              >
+                🔄 別の写真で解析
+              </button>
             </div>
             
             {/* 検出された特徴量表示 */}

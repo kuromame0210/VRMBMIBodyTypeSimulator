@@ -5,8 +5,8 @@ console.log('🔍 VRMファイル分析ツール');
 console.log('=======================');
 
 // VRMファイルの一覧を取得
-const vrmDir = path.join(__dirname, 'public', 'vrm-models');
-const vrmFiles = fs.readdirSync(vrmDir).filter(file => file.endsWith('.vrm'));
+const vrmDir = path.join(__dirname, '..', 'public', 'vrm-models');
+const vrmFiles = fs.readdirSync(vrmDir).filter(file => file.endsWith('.vrm') || file.endsWith('.glb'));
 
 console.log(`📁 発見されたVRMファイル: ${vrmFiles.length}個`);
 vrmFiles.forEach((file, index) => {

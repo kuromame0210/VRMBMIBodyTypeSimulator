@@ -14,59 +14,70 @@ export interface AvatarData {
 }
 
 export const AVATAR_LIST: AvatarData[] = [
-  // 女性アバター (2体)
+  // 女性アバター (3体) - 新モデル
   {
-    id: 'female_01',
+    id: 'f_0',
     name: '女性A',
     gender: 'female',
-    vrmPath: '/vrm-models/female_01.glb',
-    thumbnailPath: '/vrm-models/thumbnails/female_01.png',
-    description: '女性アバターA（体型シミュレーション対応）',
+    vrmPath: '/vrm-models/f_0.glb',
+    thumbnailPath: '/vrm-models/thumbnails/f_0.png',
+    description: '女性アバターA（顔特徴・アニメーション対応）',
     blendShapeNames: {
       fatness: 'fatness'
     }
   },
   {
-    id: 'female_02',
+    id: 'f_1',
     name: '女性B',
     gender: 'female',
-    vrmPath: '/vrm-models/female_02.glb',
-    thumbnailPath: '/vrm-models/thumbnails/female_02.png',
-    description: '女性アバターB（体型シミュレーション対応）',
+    vrmPath: '/vrm-models/f_1.glb',
+    thumbnailPath: '/vrm-models/thumbnails/f_1.png',
+    description: '女性アバターB（顔特徴・アニメーション対応）',
     blendShapeNames: {
       fatness: 'fatness'
     }
   },
-  // 男性アバター (3体)
   {
-    id: 'male_01',
+    id: 'f_2',
+    name: '女性C',
+    gender: 'female',
+    vrmPath: '/vrm-models/f_2.glb',
+    thumbnailPath: '/vrm-models/thumbnails/f_2.png',
+    description: '女性アバターC（顔特徴・アニメーション対応）',
+    blendShapeNames: {
+      fatness: 'fatness'
+    }
+  },
+  // 男性アバター (3体) - 新モデル
+  {
+    id: 'm_0',
     name: '男性A',
     gender: 'male',
-    vrmPath: '/vrm-models/male_01.glb',
-    thumbnailPath: '/vrm-models/thumbnails/male_01.png',
-    description: '男性アバターA（体型シミュレーション対応）',
+    vrmPath: '/vrm-models/m_0.glb',
+    thumbnailPath: '/vrm-models/thumbnails/m_0.png',
+    description: '男性アバターA（顔特徴・アニメーション対応）',
     blendShapeNames: {
       fatness: 'fatness'
     }
   },
   {
-    id: 'male_02',
+    id: 'm_1',
     name: '男性B',
     gender: 'male',
-    vrmPath: '/vrm-models/male_02.glb',
-    thumbnailPath: '/vrm-models/thumbnails/male_02.png',
-    description: '男性アバターB（体型シミュレーション対応）',
+    vrmPath: '/vrm-models/m_1.glb',
+    thumbnailPath: '/vrm-models/thumbnails/m_1.png',
+    description: '男性アバターB（顔特徴・アニメーション対応）',
     blendShapeNames: {
       fatness: 'fatness'
     }
   },
   {
-    id: 'male_03',
+    id: 'm_2',
     name: '男性C',
     gender: 'male',
-    vrmPath: '/vrm-models/male_03.glb',
-    thumbnailPath: '/vrm-models/thumbnails/male_03.png',
-    description: '男性アバターC（体型シミュレーション対応）',
+    vrmPath: '/vrm-models/m_2.glb',
+    thumbnailPath: '/vrm-models/thumbnails/m_2.png',
+    description: '男性アバターC（顔特徴・アニメーション対応）',
     blendShapeNames: {
       fatness: 'fatness'
     }
