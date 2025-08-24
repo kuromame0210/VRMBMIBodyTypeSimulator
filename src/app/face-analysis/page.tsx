@@ -13,9 +13,11 @@ import { DEFAULT_BLENDSHAPE_CONFIG } from '@/config/blendshape-config';
 import PageWrapper from '@/components/PageWrapper';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import { useRouter } from 'next/navigation';
+import { useAvatarState } from '@/hooks/useAvatarState';
 
 function FaceAnalysisContent() {
   const router = useRouter();
+  const { selectedAvatar } = useAvatarState();
   
   // Core State
   const [faceLandmarkerImage, setFaceLandmarkerImage] = useState<FaceLandmarker | null>(null);
@@ -708,6 +710,7 @@ function FaceAnalysisContent() {
                 faceFeatures={photoFeatures}
                 manualBlendShapeValues={blendShapeStore.currentValues}
                 onAvailableShapesChange={setAvailableBlendShapes}
+                avatarId={selectedAvatar?.id}
               />
             </div>
             

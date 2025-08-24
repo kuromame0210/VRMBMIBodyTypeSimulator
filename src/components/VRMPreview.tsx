@@ -17,13 +17,15 @@ interface VRMPreviewProps {
   className?: string;
   manualBlendShapeValues?: Record<string, number>;
   onAvailableShapesChange?: (shapes: string[]) => void;
+  avatarId?: string;
 }
 
 export default function VRMPreview({ 
   faceFeatures, 
   className = "w-full h-full",
   manualBlendShapeValues,
-  onAvailableShapesChange 
+  onAvailableShapesChange,
+  avatarId
 }: VRMPreviewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
@@ -196,8 +198,10 @@ export default function VRMPreview({
         console.log('📦 GLTFLoader初期化中...');
         const loader = new GLTFLoader();
         
-        // WSL準拠: 固定のVRMファイルを使用
-        const selectedVRM = '/vrm-models/female_01_ver2.glb';
+        // WSL準拠: 動的なVRMファイル選択
+        const selectedVRM = avatarId 
+          ? `/vrm-models/${avatarId}.glb`
+          : '/vrm-models/f_0.glb';
         console.log('🎭 WSL準拠VRMファイル:', selectedVRM);
         
         // WSL準拠: GLBファイルかVRMファイルかで分岐
@@ -375,7 +379,7 @@ export default function VRMPreview({
         console.log('⚠️ 遅延後VRM初期化キャンセル: コンポーネントアンマウント済み');
       }
     }, 100);
-  }, []);
+  }, [avatarId]);
 
   // 顔特徴の適用
   useEffect(() => {
