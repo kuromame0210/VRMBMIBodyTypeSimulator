@@ -89,9 +89,9 @@ function FaceAnalysisContent() {
           },
           runningMode: "IMAGE",
           numFaces: 1,
-          minFaceDetectionConfidence: 0.5,
-          minFacePresenceConfidence: 0.5,
-          minTrackingConfidence: 0.5
+          minFaceDetectionConfidence: 0.3, // 感度向上: 0.5 → 0.3
+          minFacePresenceConfidence: 0.3,  // 感度向上: 0.5 → 0.3
+          minTrackingConfidence: 0.3       // 感度向上: 0.5 → 0.3
         });
         
         setFaceLandmarkerImage(landmarkerImage);
@@ -344,16 +344,25 @@ function FaceAnalysisContent() {
       const leftEyeTop = landmarks[159];
       const leftEyeBottom = landmarks[145];
 
-      // 仕様書準拠: 目の特徴を正規化して計算
-      const eyeWidth = Math.hypot(
+      // 自然な範囲版: 平均的な顔を0.5とし、極端な特徴も検出可能
+      const rawEyeWidth = Math.hypot(
         leftEyeOuter.x - leftEyeInner.x,
         leftEyeOuter.y - leftEyeInner.y
-      ) / faceWidth; // 正規化
-
-      const eyeHeight = Math.hypot(
+      );
+      const rawEyeHeight = Math.hypot(
         leftEyeTop.x - leftEyeBottom.x,
         leftEyeTop.y - leftEyeBottom.y
-      ) / faceHeight; // 正規化
+      );
+      
+      // 顔幅による正規化（従来手法）
+      const eyeWidthNormalizedByFace = rawEyeWidth / faceWidth;
+      // 平均値0.15を中心とした自然な分布 → 0-1範囲に（丸め込み前提）
+      const eyeWidthRaw = (eyeWidthNormalizedByFace - 0.10) / 0.10; // 0.10を中心に±0.10で0-1範囲
+      const eyeWidth = Math.max(0, Math.min(1, eyeWidthRaw));
+
+      const eyeHeightNormalizedByFace = rawEyeHeight / faceHeight;
+      const eyeHeightRaw = (eyeHeightNormalizedByFace - 0.025) / 0.03; // 0.025を中心に±0.03で0-1範囲  
+      const eyeHeight = Math.max(0, Math.min(1, eyeHeightRaw));
 
       const eyeAspectRatio = eyeHeight / eyeWidth;
       
@@ -399,11 +408,14 @@ function FaceAnalysisContent() {
       const noseTip = landmarks[1];
       const noseBridge = landmarks[168]; // 仕様書推奨の鼻根点
 
-      // 正規化済み鼻の特徴
-      const noseWidth = Math.hypot(
+      // 自然な範囲版: 鼻の特徴を平均値中心で検出
+      const rawNoseWidth = Math.hypot(
         noseLeft.x - noseRight.x,
         noseLeft.y - noseRight.y
-      ) / faceWidth; // 推定レンジ: 0.12-0.25
+      );
+      const noseWidthNormalizedByFace = rawNoseWidth / faceWidth;
+      const noseWidthRaw = (noseWidthNormalizedByFace - 0.15) / 0.08; // 0.15を中心に±0.08で0-1範囲
+      const noseWidth = Math.max(0, Math.min(1, noseWidthRaw));
 
       const noseHeight = Math.hypot(
         noseBridge.x - noseTip.x,
@@ -436,11 +448,14 @@ function FaceAnalysisContent() {
       const mouthTop = landmarks[13];
       const mouthBottom = landmarks[14];
 
-      // 正規化済み口の特徴
-      const mouthWidth = Math.hypot(
+      // 自然な範囲版: 口の特徴を平均値中心で検出
+      const rawMouthWidth = Math.hypot(
         mouthLeft.x - mouthRight.x,
         mouthLeft.y - mouthRight.y
-      ) / faceWidth; // 推定レンジ: 0.25-0.50
+      );
+      const mouthWidthNormalizedByFace = rawMouthWidth / faceWidth;
+      const mouthWidthRaw = (mouthWidthNormalizedByFace - 0.30) / 0.12; // 0.30を中心に±0.12で0-1範囲
+      const mouthWidth = Math.max(0, Math.min(1, mouthWidthRaw));
 
       const mouthHeight = Math.hypot(
         mouthTop.x - mouthBottom.x,
@@ -512,25 +527,70 @@ function FaceAnalysisContent() {
       
       console.log('✅ 特徴量計算結果:');
       console.log('📊 数値検証:');
-      console.log(`  目幅 (正規化): ${result.eyeWidth} (範囲: 0.1-0.3)`);
-      console.log(`  目高 (正規化): ${result.eyeHeight} (範囲: 0.02-0.08)`);
+      console.log(`  目幅 (0-1正規化): ${result.eyeWidth} (範囲: 0.0-1.0)`);
+      console.log(`  目高 (0-1正規化): ${result.eyeHeight} (範囲: 0.0-1.0)`);
       console.log(`  目間隔 (正規化): ${result.eyeDistance} (範囲: 0.05-0.15)`);
       console.log(`  目角度: ${result.eyeAngle}° (範囲: -15°～+15°)`);
-      console.log(`  鼻幅 (正規化): ${result.noseWidth} (範囲: 0.12-0.25)`);
-      console.log(`  口幅 (正規化): ${result.mouthWidth} (範囲: 0.25-0.50)`);
+      console.log(`  鼻幅 (0-1正規化): ${result.noseWidth} (範囲: 0.0-1.0)`);
+      console.log(`  口幅 (0-1正規化): ${result.mouthWidth} (範囲: 0.0-1.0)`);
       console.log(`  顔幅比率: ${result.faceWidth} (範囲: 1.2-1.8)`);
       
-      // 異常値チェック
+      // ==== 🔍 検出感度分析 ====
+      console.log('🔍 === 検出感度分析 ===');
+      console.log('📐 自然範囲正規化計算値（丸め込み後）:');
+      console.log(`  目幅: ${eyeWidth.toFixed(6)} (生値: ${eyeWidthNormalizedByFace.toFixed(6)}, 丸め前: ${eyeWidthRaw.toFixed(6)})`);
+      console.log(`  目高: ${eyeHeight.toFixed(6)} (生値: ${eyeHeightNormalizedByFace.toFixed(6)}, 丸め前: ${eyeHeightRaw.toFixed(6)})`);
+      console.log(`  鼻幅: ${noseWidth.toFixed(6)} (生値: ${noseWidthNormalizedByFace.toFixed(6)}, 丸め前: ${noseWidthRaw.toFixed(6)})`);
+      console.log(`  口幅: ${mouthWidth.toFixed(6)} (生値: ${mouthWidthNormalizedByFace.toFixed(6)}, 丸め前: ${mouthWidthRaw.toFixed(6)})`);
+      console.log(`  生の顔比率: ${faceAspectRatio.toFixed(6)}`);
+      console.log(`  生の顎角度: ${jawAngle.toFixed(2)}° (シャープ度: ${jawSharpness.toFixed(4)})`);
+      
+      console.log('📊 範囲外値の丸め込み状況:');
+      // 丸め込みが発生したかどうかをチェック
+      const clampedValues = [];
+      if (eyeWidthRaw < 0 || eyeWidthRaw > 1) clampedValues.push(`目幅: ${eyeWidthRaw.toFixed(3)}→${eyeWidth.toFixed(3)}`);
+      if (eyeHeightRaw < 0 || eyeHeightRaw > 1) clampedValues.push(`目高: ${eyeHeightRaw.toFixed(3)}→${eyeHeight.toFixed(3)}`);
+      if (noseWidthRaw < 0 || noseWidthRaw > 1) clampedValues.push(`鼻幅: ${noseWidthRaw.toFixed(3)}→${noseWidth.toFixed(3)}`);
+      if (mouthWidthRaw < 0 || mouthWidthRaw > 1) clampedValues.push(`口幅: ${mouthWidthRaw.toFixed(3)}→${mouthWidth.toFixed(3)}`);
+      
+      if (clampedValues.length > 0) {
+        console.log(`🔒 丸め込み発生: ${clampedValues.join(', ')}`);
+      } else {
+        console.log('✅ すべて自然に0-1範囲内');
+      }
+      
+      const eyeWidthVariance = (eyeWidth - 0.5) / 0.25; 
+      const eyeHeightVariance = (eyeHeight - 0.5) / 0.25;
+      const noseWidthVariance = (noseWidth - 0.5) / 0.25;
+      const mouthWidthVariance = (mouthWidth - 0.5) / 0.25;
+      console.log(`  目幅の偏差: ${eyeWidthVariance.toFixed(2)}σ`);
+      console.log(`  目高の偏差: ${eyeHeightVariance.toFixed(2)}σ`);
+      console.log(`  鼻幅の偏差: ${noseWidthVariance.toFixed(2)}σ`);
+      console.log(`  口幅の偏差: ${mouthWidthVariance.toFixed(2)}σ`);
+      
+      // 0-1範囲異常値チェック
       const issues = [];
-      if (result.eyeWidth < 0.05 || result.eyeWidth > 0.5) issues.push(`目幅異常: ${result.eyeWidth}`);
-      if (result.eyeHeight < 0.01 || result.eyeHeight > 0.15) issues.push(`目高異常: ${result.eyeHeight}`);
-      if (result.noseWidth < 0.05 || result.noseWidth > 0.4) issues.push(`鼻幅異常: ${result.noseWidth}`);
-      if (result.mouthWidth < 0.1 || result.mouthWidth > 0.8) issues.push(`口幅異常: ${result.mouthWidth}`);
+      if (result.eyeWidth < 0 || result.eyeWidth > 1) issues.push(`目幅範囲外: ${result.eyeWidth}`);
+      if (result.eyeHeight < 0 || result.eyeHeight > 1) issues.push(`目高範囲外: ${result.eyeHeight}`);
+      if (result.noseWidth < 0 || result.noseWidth > 1) issues.push(`鼻幅範囲外: ${result.noseWidth}`);
+      if (result.mouthWidth < 0 || result.mouthWidth > 1) issues.push(`口幅範囲外: ${result.mouthWidth}`);
       
       if (issues.length > 0) {
-        console.warn('⚠️ 異常値検出:', issues);
+        console.warn('⚠️ 0-1範囲外の値検出:', issues);
       } else {
-        console.log('✅ すべての値が正常範囲内');
+        console.log('✅ すべての値が0-1範囲内');
+      }
+      
+      // 0-1範囲での検出感度評価
+      const lowVarianceFeatures = [];
+      if (Math.abs(eyeWidthVariance) < 0.5) lowVarianceFeatures.push('目幅');
+      if (Math.abs(eyeHeightVariance) < 0.5) lowVarianceFeatures.push('目高');
+      if (Math.abs(noseWidthVariance) < 0.5) lowVarianceFeatures.push('鼻幅');
+      if (Math.abs(mouthWidthVariance) < 0.5) lowVarianceFeatures.push('口幅');
+      
+      if (lowVarianceFeatures.length > 0) {
+        console.warn(`⚠️ 検出感度が低い特徴: ${lowVarianceFeatures.join(', ')} (標準的な顔に近すぎる)`);
+        console.warn('💡 これらの特徴は個人差を検出しにくい可能性があります');
       }
       
       return result;
