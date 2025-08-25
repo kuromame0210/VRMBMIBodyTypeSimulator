@@ -45,7 +45,7 @@ export default function VRMPreview({
 
   useEffect(() => {
     isMountedRef.current = true;
-    console.log('📋 VRMPreview マウント完了, 初期loading状態:', isLoading);
+    // console.log('📋 VRMPreview マウント完了, 初期loading状態:', isLoading);
     
     // ページ離脱時の緊急クリーンアップ
     const handleBeforeUnload = () => {
@@ -58,7 +58,7 @@ export default function VRMPreview({
           }
           rendererRef.current.dispose();
         } catch (e) {
-          console.warn('緊急クリーンアップエラー:', e);
+          // console.warn('緊急クリーンアップエラー:', e);
         }
       }
     };
@@ -86,7 +86,7 @@ export default function VRMPreview({
           try {
             container.removeChild(rendererElement);
           } catch (error) {
-            console.warn('DOM削除エラー:', error);
+            // console.warn('DOM削除エラー:', error);
           }
         }
         
@@ -100,9 +100,9 @@ export default function VRMPreview({
             }
           }
           rendererRef.current.dispose();
-          console.log('🗑️ WebGLコンテキスト破棄完了');
+          // console.log('🗑️ WebGLコンテキスト破棄完了');
         } catch (error) {
-          console.warn('レンダラー破棄エラー:', error);
+          // console.warn('レンダラー破棄エラー:', error);
         }
         rendererRef.current = null;
       }
@@ -111,7 +111,7 @@ export default function VRMPreview({
         try {
           sceneRef.current.clear();
         } catch (error) {
-          console.warn('シーンクリアエラー:', error);
+          // console.warn('シーンクリアエラー:', error);
         }
         sceneRef.current = null;
       }
@@ -122,32 +122,32 @@ export default function VRMPreview({
   }, []);
 
   useEffect(() => {
-    console.log('📋 VRMPreview useEffectトリガー:', {
-      containerExists: !!containerRef.current,
-      isMounted: isMountedRef.current,
-      currentIsLoading: isLoading,
-      hasRenderer: !!rendererRef.current
-    });
+    // console.log('📋 VRMPreview useEffectトリガー:', {
+    //   containerExists: !!containerRef.current,
+    //   isMounted: isMountedRef.current,
+    //   currentIsLoading: isLoading,
+    //   hasRenderer: !!rendererRef.current
+    // });
     
     if (!containerRef.current || !isMountedRef.current) {
-      console.warn('⚠️ VRM初期化スキップ: containerまたはisMountedが無い');
+      // console.warn('⚠️ VRM初期化スキップ: containerまたはisMountedが無い');
       return;
     }
 
     if (rendererRef.current) {
-      console.warn('⚠️ VRM初期化スキップ: 既にレンダラーが存在');
+      // console.warn('⚠️ VRM初期化スキップ: 既にレンダラーが存在');
       return;
     }
 
     const initializeVRM = async () => {
       try {
-        console.log('🚀 VRM初期化開始 - Loading状態をtrueに設定');
+        // console.log('🚀 VRM初期化開始 - Loading状態をtrueに設定');
         setIsLoading(true);
         setLoadError(null);
-        console.log('📱 ユーザーに「VRM読み込み中...」を表示中');
+        // console.log('📱 ユーザーに「VRM読み込み中...」を表示中');
 
         // Three.js基本設定
-        console.log('🎬 Three.js設定中...');
+        // console.log('🎬 Three.js設定中...');
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0xf0f0f0);
         sceneRef.current = scene;
@@ -157,7 +157,7 @@ export default function VRMPreview({
         camera.position.set(0, 1.6, 0.65); // 少し近づけて胸部分を減らす
         camera.lookAt(0, 1.62, 0); // 顔の中心を見る
         cameraRef.current = camera;
-        console.log('📷 顔メイン表示カメラ設定:', { position: camera.position, lookAt: [0, 1.62, 0] });
+        // console.log('📷 顔メイン表示カメラ設定:', { position: camera.position, lookAt: [0, 1.62, 0] });
 
         // WebGLコンテキスト作成前の検証
         const canvas = document.createElement('canvas');
@@ -166,7 +166,7 @@ export default function VRMPreview({
           throw new Error('WebGLがサポートされていません');
         }
         
-        console.log('🎮 WebGL対応確認済み、レンダラー作成中...');
+        // console.log('🎮 WebGL対応確認済み、レンダラー作成中...');
         const renderer = new THREE.WebGLRenderer({ 
           antialias: true,
           preserveDrawingBuffer: false, // メモリ使用量を削減
@@ -192,29 +192,29 @@ export default function VRMPreview({
         directionalLight.castShadow = true;
         scene.add(directionalLight);
         
-        console.log('💡 WSL準拠顔専用ライティング設定完了');
+        // console.log('💡 WSL準拠顔専用ライティング設定完了');
 
         // WSL準拠: GLBファイル読み込み初期化
-        console.log('📦 GLTFLoader初期化中...');
+        // console.log('📦 GLTFLoader初期化中...');
         const loader = new GLTFLoader();
         
         // WSL準拠: 動的なVRMファイル選択
         const selectedVRM = avatarId 
           ? `/vrm-models/${avatarId}.glb`
           : '/vrm-models/f_0.glb';
-        console.log('🎭 WSL準拠VRMファイル:', selectedVRM);
+        // console.log('🎭 WSL準拠VRMファイル:', selectedVRM);
         
         // WSL準拠: GLBファイルかVRMファイルかで分岐
         const isGLBFile = selectedVRM.endsWith('.glb');
-        console.log('📝 ファイル形式判定: GLB =', isGLBFile);
+        // console.log('📝 ファイル形式判定: GLB =', isGLBFile);
         
         if (!isGLBFile) {
           // VRMファイルの場合のみプラグイン登録
-          console.log('🔌 VRMLoaderPlugin登録中...');
+          // console.log('🔌 VRMLoaderPlugin登録中...');
           loader.register((parser) => new VRMLoaderPlugin(parser));
         }
         
-        console.log('📦 GLTFLoader読み込み開始...');
+        // console.log('📦 GLTFLoader読み込み開始...');
         const gltf = await new Promise<any>((resolve, reject) => {
           const timeoutId = setTimeout(() => {
             reject(new Error('VRM読み込みタイムアウト (10秒)'));
@@ -224,14 +224,14 @@ export default function VRMPreview({
           loader.load(
             selectedVRM,
             (result) => {
-              console.log('✅ GLTF読み込み成功');
+              // console.log('✅ GLTF読み込み成功');
               clearTimeout(timeoutId);
               timeoutIdsRef.current.delete(timeoutId);
               resolve(result);
             },
             undefined,
             (error) => {
-              console.error('❌ GLTF読み込みエラー:', error);
+              // console.error('❌ GLTF読み込みエラー:', error);
               clearTimeout(timeoutId);
               timeoutIdsRef.current.delete(timeoutId);
               reject(error);
@@ -241,19 +241,19 @@ export default function VRMPreview({
 
         if (!isMountedRef.current) return;
 
-        console.log('🔍 ファイル読み込み結果確認中...', {
-          hasUserData: !!gltf.userData,
-          hasVRM: !!(gltf.userData?.vrm),
-          sceneChildren: gltf.scene.children.length,
-          animations: gltf.animations.length,
-          isGLBFile: isGLBFile
-        });
+        // console.log('🔍 ファイル読み込み結果確認中...', {
+        //   hasUserData: !!gltf.userData,
+        //   hasVRM: !!(gltf.userData?.vrm),
+        //   sceneChildren: gltf.scene.children.length,
+        //   animations: gltf.animations.length,
+        //   isGLBFile: isGLBFile
+        // });
         
         let vrm: any = null;
         
         if (isGLBFile) {
           // WSL準拠: GLBファイルの場合は手動でVRM風のオブジェクトを作成
-          console.log('📦 GLB読み込み完了、WSL準拠のモーフターゲット管理開始...');
+          // console.log('📦 GLB読み込み完了、WSL準拠のモーフターゲット管理開始...');
           
           // GLTFシーンを直接使用し、VRM風のオブジェクトを作成
           vrm = {
@@ -265,21 +265,21 @@ export default function VRMPreview({
             }
           };
           
-          console.log('✅ GLB->VRM変換完了、シーンに追加中...');
+          // console.log('✅ GLB->VRM変換完了、シーンに追加中...');
           vrmRef.current = vrm;
           scene.add(vrm.scene);
           
           // WSL準拠: 利用可能なBlendShapeを検出
-          console.log('🔍 BlendShape検出開始...');
+          // console.log('🔍 BlendShape検出開始...');
           const detectedShapes = detectAvailableBlendShapes(vrm);
           setAvailableShapes(detectedShapes);
-          console.log(`✅ 検出完了: ${detectedShapes.length}個のシェイプ`, detectedShapes.slice(0, 10));
+          // console.log(`✅ 検出完了: ${detectedShapes.length}個のシェイプ`, detectedShapes.slice(0, 10));
           
           // WSL準拠: BlendShapeターゲットを収集し管理
-          console.log('🎯 BlendShapeターゲット収集開始...');
+          // console.log('🎯 BlendShapeターゲット収集開始...');
           const targets = collectBlendShapeTargets(vrm.scene);
           setBlendShapeTargets(targets);
-          console.log(`✅ ターゲット収集完了: ${targets.length}個のメッシュ、${detectedShapes.length}個のシェイプ`);
+          // console.log(`✅ ターゲット収集完了: ${targets.length}個のメッシュ、${detectedShapes.length}個のシェイプ`);
           
           // 親コンポーネントに通知
           if (onAvailableShapesChange) {
@@ -295,22 +295,22 @@ export default function VRMPreview({
           // VRMファイルの場合は従来の方法
           const vrmData = gltf.userData?.vrm;
           if (vrmData) {
-            console.log('✅ VRMデータ発見、シーンに追加中...');
+            // console.log('✅ VRMデータ発見、シーンに追加中...');
             vrmRef.current = vrmData;
             scene.add(vrmData.scene);
             VRMUtils.rotateVRM0(vrmData);
             
             // WSL準拠: 利用可能なBlendShapeを検出とターゲット管理を同時実行
-            console.log('🔍 BlendShape検出開始...');
+            // console.log('🔍 BlendShape検出開始...');
             const detectedShapes = detectAvailableBlendShapes(vrmData);
             setAvailableShapes(detectedShapes);
-            console.log(`✅ 検出完了: ${detectedShapes.length}個のシェイプ`, detectedShapes.slice(0, 10));
+            // console.log(`✅ 検出完了: ${detectedShapes.length}個のシェイプ`, detectedShapes.slice(0, 10));
             
             // WSL準拠: BlendShapeターゲットを収集し管理
-            console.log('🎯 BlendShapeターゲット収集開始...');
+            // console.log('🎯 BlendShapeターゲット収集開始...');
             const targets = collectBlendShapeTargets(vrmData.scene);
             setBlendShapeTargets(targets);
-            console.log(`✅ ターゲット収集完了: ${targets.length}個のメッシュ、${detectedShapes.length}個のシェイプ`);
+            // console.log(`✅ ターゲット収集完了: ${targets.length}個のメッシュ、${detectedShapes.length}個のシェイプ`);
             
             // 親コンポーネントに通知
             if (onAvailableShapesChange) {
@@ -322,7 +322,7 @@ export default function VRMPreview({
               applyFaceFeatures(vrmData, faceFeatures);
             }
           } else {
-            console.error('❌ VRMデータが見つかりません');
+            // console.error('❌ VRMデータが見つかりません');
             throw new Error('VRMデータが見つかりません');
           }
         }
@@ -332,12 +332,12 @@ export default function VRMPreview({
           vrmLoaded: !!vrm,
           sceneObjects: vrm?.scene?.children?.length || 0
         };
-        console.log('🎉 VRM初期化完全完了！', logData);
+        // console.log('🎉 VRM初期化完全完了！', logData);
         
         // WSL準拠: 少し遅延してからloading状態を解除（ユーザーがloading表示を確認できるように）
         setTimeout(() => {
           if (isMountedRef.current) {
-            console.log('✅ VRM読み込み表示完了、loading状態解除');
+            // console.log('✅ VRM読み込み表示完了、loading状態解除');
             setIsLoading(false);
           }
         }, 500);
@@ -363,20 +363,20 @@ export default function VRMPreview({
       } catch (error) {
         if (!isMountedRef.current) return;
         
-        console.error('VRM初期化エラー:', error);
+        // console.error('VRM初期化エラー:', error);
         setLoadError(error instanceof Error ? error.message : 'VRM読み込みに失敗しました');
         setIsLoading(false);
       }
     };
 
     // WSL準拠: 遅延読み込みで安定性を確保
-    console.log('🚀 VRM初期化関数を100ms後に実行... 現在のisLoading:', isLoading);
+    // console.log('🚀 VRM初期化関数を100ms後に実行... 現在のisLoading:', isLoading);
     setTimeout(() => {
       if (isMountedRef.current) {
-        console.log('📋 遅延後VRM初期化実行 isLoading:', isLoading);
+        // console.log('📋 遅延後VRM初期化実行 isLoading:', isLoading);
         initializeVRM();
       } else {
-        console.log('⚠️ 遅延後VRM初期化キャンセル: コンポーネントアンマウント済み');
+        // console.log('⚠️ 遅延後VRM初期化キャンセル: コンポーネントアンマウント済み');
       }
     }, 100);
   }, [avatarId]);
@@ -412,7 +412,7 @@ export default function VRMPreview({
         });
       }
     } catch (error) {
-      console.warn('BlendShape検出エラー:', error);
+      // console.warn('BlendShape検出エラー:', error);
     }
     
     return shapes.sort();
@@ -442,16 +442,16 @@ export default function VRMPreview({
       let totalCount = 0;
       const detailedResults: Array<{shapeName: string, inputValue: number, finalValue: number, targetIndex: number, meshName: string, changed: boolean}> = [];
       
-      console.log('🔍 === 手動BlendShape値適用検証開始 ===');
-      console.log(`📥 入力BlendShape値: ${Object.keys(blendShapeValues).length}個`);
-      console.log('   主要値:', Object.entries(blendShapeValues)
-        .filter(([name]) => ['Mouth_Wide', 'Eye_Close', 'Nose_Wide'].includes(name))
-        .map(([name, value]) => `${name}: ${value.toFixed(3)}`)
-        .join(', ')
-      );
+      // console.log('🔍 === 手動BlendShape値適用検証開始 ===');
+      // console.log(`📥 入力BlendShape値: ${Object.keys(blendShapeValues).length}個`);
+      // console.log('   主要値:', Object.entries(blendShapeValues)
+      //   .filter(([name]) => ['Mouth_Wide', 'Eye_Close', 'Nose_Wide'].includes(name))
+      //   .map(([name, value]) => `${name}: ${value.toFixed(3)}`)
+      //   .join(', ')
+      // );
       
       blendShapeTargets.forEach((target, targetIdx) => {
-        console.log(`📦 ターゲット${targetIdx}: ${target.mesh.name || '名前なし'} (BlendShape: ${Object.keys(target.morphTargetDictionary).length}個)`);
+        // console.log(`📦 ターゲット${targetIdx}: ${target.mesh.name || '名前なし'} (BlendShape: ${Object.keys(target.morphTargetDictionary).length}個`);
         
         Object.entries(blendShapeValues).forEach(([shapeName, value]) => {
           totalCount++;
@@ -473,50 +473,50 @@ export default function VRMPreview({
             });
             
             // WSL準拠: 変化の詳細ログ（重要なBlendShapeまたは大きな変化）
-            if (((['Mouth_Wide', 'Eye_Close', 'Nose_Wide'].includes(shapeName)) || Math.abs(clampedValue - previousValue) > 0.05) && changed) {
-              console.log(`🎯 ${shapeName}[${targetIndex}] @${target.mesh.name}: ${previousValue.toFixed(3)} → ${clampedValue.toFixed(3)} (Δ${(clampedValue - previousValue).toFixed(3)})`);
-            }
+            // if (((['Mouth_Wide', 'Eye_Close', 'Nose_Wide'].includes(shapeName)) || Math.abs(clampedValue - previousValue) > 0.05) && changed) {
+            //   console.log(`🎯 ${shapeName}[${targetIndex}] @${target.mesh.name}: ${previousValue.toFixed(3)} → ${clampedValue.toFixed(3)} (Δ${(clampedValue - previousValue).toFixed(3)})`);
+            // }
             
             appliedCount++;
           } else {
             // BlendShapeが見つからない場合の詳細ログ
-            console.warn(`⚠️ BlendShape未発見: ${shapeName} @${target.mesh.name || '名前なし'}`);
+            // console.warn(`⚠️ BlendShape未発見: ${shapeName} @${target.mesh.name || '名前なし'}`);
           }
         });
       });
       
       // 詳細な結果検証
-      console.log('📊 === 手動BlendShape適用結果検証 ===');
-      console.log(`✅ 適用済み総数: ${appliedCount}/${totalCount}`);
+      // console.log('📊 === 手動BlendShape適用結果検証 ===');
+      // console.log(`✅ 適用済み総数: ${appliedCount}/${totalCount}`);
       
       if (totalCount > 0) {
         const successRate = (appliedCount / totalCount) * 100;
-        console.log(`📈 成功率: ${successRate.toFixed(1)}%`);
+        // console.log(`📈 成功率: ${successRate.toFixed(1)}%`);
         
         // 実際に変化したBlendShapeの統計
         const changedResults = detailedResults.filter(r => r.changed);
-        console.log(`🔄 実際に変化: ${changedResults.length}個`);
+        // console.log(`🔄 実際に変化: ${changedResults.length}個`);
         
         // 効果的な変化（> 0.05）のBlendShape
         const significantChanges = changedResults.filter(r => r.finalValue > 0.05);
-        console.log(`🎯 効果的変化 (>0.05): ${significantChanges.length}個`);
-        significantChanges.forEach(r => {
-          console.log(`   ${r.shapeName}: ${r.finalValue.toFixed(3)} @${r.meshName}`);
-        });
+        // console.log(`🎯 効果的変化 (>0.05): ${significantChanges.length}個`);
+        // significantChanges.forEach(r => {
+        //   console.log(`   ${r.shapeName}: ${r.finalValue.toFixed(3)} @${r.meshName}`);
+        // });
         
         // 微小変化の警告
         const minorChanges = changedResults.filter(r => r.finalValue <= 0.05 && r.finalValue > 0);
         if (minorChanges.length > 0) {
-          console.warn(`🔸 微小変化 (≤0.05): ${minorChanges.length}個 - 視覚的効果が限定的な可能性`);
-          minorChanges.slice(0, 5).forEach(r => {
-            console.warn(`   ${r.shapeName}: ${r.finalValue.toFixed(3)} @${r.meshName}`);
-          });
+          // console.warn(`🔸 微小変化 (≤0.05): ${minorChanges.length}個 - 視覚的効果が限定的な可能性`);
+          // minorChanges.slice(0, 5).forEach(r => {
+          //   console.warn(`   ${r.shapeName}: ${r.finalValue.toFixed(3)} @${r.meshName}`);
+          // });
         }
         
-        console.log(`✅ 最適化BlendShape適用完了: ${appliedCount}/${totalCount} (${successRate.toFixed(1)}%) - 検証済み`);
+        // console.log(`✅ 最適化BlendShape適用完了: ${appliedCount}/${totalCount} (${successRate.toFixed(1)}%) - 検証済み`);
       }
     } catch (error) {
-      console.warn('❌ 最適化BlendShape適用エラー:', error);
+      // console.warn('❌ 最適化BlendShape適用エラー:', error);
     }
   };
 
@@ -544,10 +544,10 @@ export default function VRMPreview({
           }
         });
         
-        console.log(`✅ 旧方式BlendShape適用完了: ${appliedCount}/${totalCount}`);
+        // console.log(`✅ 旧方式BlendShape適用完了: ${appliedCount}/${totalCount}`);
       }
     } catch (error) {
-      console.warn('❌ 手動BlendShape適用エラー:', error);
+      // console.warn('❌ 手動BlendShape適用エラー:', error);
     }
   };
 
@@ -558,18 +558,18 @@ export default function VRMPreview({
       let appliedCount = 0;
       const appliedBlendShapes: Array<{name: string, inputValue: number, calculatedValue: number, finalValue: number, method: string}> = [];
       
-      console.log('🔍 === BlendShape反映検証開始 ===');
-      console.log('📥 入力顔特徴値:', {
-        eyeWidth: features.eyeWidth?.toFixed(4),
-        eyeHeight: features.eyeHeight?.toFixed(4), 
-        mouthWidth: features.mouthWidth?.toFixed(4),
-        noseWidth: features.noseWidth?.toFixed(4)
-      });
+      // console.log('🔍 === BlendShape反映検証開始 ===');
+      // console.log('📥 入力顔特徴値:', {
+      //   eyeWidth: features.eyeWidth?.toFixed(4),
+      //   eyeHeight: features.eyeHeight?.toFixed(4), 
+      //   mouthWidth: features.mouthWidth?.toFixed(4),
+      //   noseWidth: features.noseWidth?.toFixed(4)
+      // });
       
       // Pass 1: VRM expressionManager方式（標準VRM）
       if (vrm.expressionManager) {
         const expressions = vrm.expressionManager.expressions;
-        console.log('🎭 VRM expressionManager検出、標準VRM方式で適用中...');
+        // console.log('🎭 VRM expressionManager検出、標準VRM方式で適用中...');
         
         // WSL準拠: 詳細な目の調整（複数パラメータ）
         if (expressions.eye_wide) {
@@ -585,7 +585,7 @@ export default function VRMPreview({
             finalValue, 
             method: 'expressionManager'
           });
-          console.log(`🎯 eye_wide: 入力${inputValue.toFixed(4)} → 計算${calculatedValue.toFixed(4)} → 最終${finalValue.toFixed(4)} (前値: ${previousValue.toFixed(4)})`);
+          // console.log(`🎯 eye_wide: 入力${inputValue.toFixed(4)} → 計算${calculatedValue.toFixed(4)} → 最終${finalValue.toFixed(4)} (前値: ${previousValue.toFixed(4)})`);
           if (finalValue > 0) appliedCount++;
         }
         
@@ -603,7 +603,7 @@ export default function VRMPreview({
             finalValue, 
             method: 'expressionManager'
           });
-          console.log(`🎯 mouth_wide: 入力${inputValue.toFixed(4)} → 計算${calculatedValue.toFixed(4)} → 最終${finalValue.toFixed(4)} (前値: ${previousValue.toFixed(4)})`);
+          // console.log(`🎯 mouth_wide: 入力${inputValue.toFixed(4)} → 計算${calculatedValue.toFixed(4)} → 最終${finalValue.toFixed(4)} (前値: ${previousValue.toFixed(4)})`);
           if (finalValue > 0) appliedCount++;
         }
         
@@ -621,22 +621,22 @@ export default function VRMPreview({
             finalValue, 
             method: 'expressionManager'
           });
-          console.log(`🎯 nose_wide: 入力${inputValue.toFixed(4)} → 計算${calculatedValue.toFixed(4)} → 最終${finalValue.toFixed(4)} (前値: ${previousValue.toFixed(4)})`);
+          // console.log(`🎯 nose_wide: 入力${inputValue.toFixed(4)} → 計算${calculatedValue.toFixed(4)} → 最終${finalValue.toFixed(4)} (前値: ${previousValue.toFixed(4)})`);
           if (finalValue > 0) appliedCount++;
         }
         
         vrm.expressionManager.update();
-        console.log('✅ expressionManager.update() 実行完了');
+        // console.log('✅ expressionManager.update() 実行完了');
       }
       
       // Pass 2: 直接morphTarget方式（GLBモデル対応）
       if (vrm.scene) {
-        console.log('🎮 直接morphTarget方式で追加適用中...');
+        // console.log('🎮 直接morphTarget方式で追加適用中...');
         
         vrm.scene.traverse((object: any) => {
           if (object.isSkinnedMesh && object.morphTargetDictionary && object.morphTargetInfluences) {
-            console.log(`📦 morphTarget対応メッシュ発見: ${object.name || '名前なし'}`);
-            console.log(`   利用可能BlendShape: ${Object.keys(object.morphTargetDictionary).slice(0, 10).join(', ')}...`);
+            // console.log(`📦 morphTarget対応メッシュ発見: ${object.name || '名前なし'}`);
+            // console.log(`   利用可能BlendShape: ${Object.keys(object.morphTargetDictionary).slice(0, 10).join(', ')}...`);
             
             // WSL準拠: Mouth_Wide特別処理
             const mouthWideIndex = object.morphTargetDictionary['Mouth_Wide'];
@@ -653,7 +653,7 @@ export default function VRMPreview({
                 finalValue, 
                 method: 'morphTarget'
               });
-              console.log(`🎯 Mouth_Wide[${mouthWideIndex}]: 入力${inputValue.toFixed(4)} → 計算${calculatedValue.toFixed(4)} → 最終${finalValue.toFixed(4)} (前値: ${previousValue.toFixed(4)})`);
+              // console.log(`🎯 Mouth_Wide[${mouthWideIndex}]: 入力${inputValue.toFixed(4)} → 計算${calculatedValue.toFixed(4)} → 最終${finalValue.toFixed(4)} (前値: ${previousValue.toFixed(4)})`);
               if (finalValue > 0) appliedCount++;
             }
             
@@ -673,7 +673,7 @@ export default function VRMPreview({
                   finalValue, 
                   method: 'morphTarget'
                 });
-                console.log(`🎯 ${eyeShape}[${index}]: 入力${inputValue.toFixed(4)} → 計算${calculatedValue.toFixed(4)} → 最終${finalValue.toFixed(4)} (前値: ${previousValue.toFixed(4)})`);
+                // console.log(`🎯 ${eyeShape}[${index}]: 入力${inputValue.toFixed(4)} → 計算${calculatedValue.toFixed(4)} → 最終${finalValue.toFixed(4)} (前値: ${previousValue.toFixed(4)})`);
                 if (finalValue > 0) appliedCount++;
               }
             });
@@ -696,7 +696,7 @@ export default function VRMPreview({
                   finalValue, 
                   method: 'morphTarget'
                 });
-                console.log(`🎯 ${noseShape}[${index}]: 入力${inputValue.toFixed(4)} → 計算${calculatedValue.toFixed(4)} → 最終${finalValue.toFixed(4)} (前値: ${previousValue.toFixed(4)})`);
+                // console.log(`🎯 ${noseShape}[${index}]: 入力${inputValue.toFixed(4)} → 計算${calculatedValue.toFixed(4)} → 最終${finalValue.toFixed(4)} (前値: ${previousValue.toFixed(4)})`);
                 if (finalValue > 0) appliedCount++;
               }
             });
@@ -705,30 +705,30 @@ export default function VRMPreview({
       }
       
       // BlendShape反映結果の総合検証
-      console.log('📊 === BlendShape反映結果検証 ===');
-      console.log(`✅ 適用済みBlendShape総数: ${appliedBlendShapes.length}個`);
-      console.log(`🔧 値が変更されたBlendShape: ${appliedCount}個`);
+      // console.log('📊 === BlendShape反映結果検証 ===');
+      // console.log(`✅ 適用済みBlendShape総数: ${appliedBlendShapes.length}個`);
+      // console.log(`🔧 値が変更されたBlendShape: ${appliedCount}個`);
       
       // 効果的に反映されたBlendShapeの詳細
       const effectiveBlendShapes = appliedBlendShapes.filter(bs => bs.finalValue > 0.01);
-      console.log(`🎯 効果的反映 (>0.01): ${effectiveBlendShapes.length}個`);
-      effectiveBlendShapes.forEach(bs => {
-        console.log(`   ${bs.name}: ${bs.finalValue.toFixed(3)} (${bs.method})`);
-      });
+      // console.log(`🎯 効果的反映 (>0.01): ${effectiveBlendShapes.length}個`);
+      // effectiveBlendShapes.forEach(bs => {
+      //   console.log(`   ${bs.name}: ${bs.finalValue.toFixed(3)} (${bs.method})`);
+      // });
       
       // 反映されなかったBlendShapeの警告
       const ineffectiveBlendShapes = appliedBlendShapes.filter(bs => bs.finalValue <= 0.01);
       if (ineffectiveBlendShapes.length > 0) {
-        console.warn(`⚠️ 反映されなかったBlendShape: ${ineffectiveBlendShapes.length}個`);
-        ineffectiveBlendShapes.forEach(bs => {
-          console.warn(`   ${bs.name}: 入力${bs.inputValue.toFixed(4)} → 最終${bs.finalValue.toFixed(4)} (閾値以下)`);
-        });
+        // console.warn(`⚠️ 反映されなかったBlendShape: ${ineffectiveBlendShapes.length}個`);
+        // ineffectiveBlendShapes.forEach(bs => {
+        //   console.warn(`   ${bs.name}: 入力${bs.inputValue.toFixed(4)} → 最終${bs.finalValue.toFixed(4)} (閾値以下)`);
+        // });
       }
       
-      console.log(`✅ 顔特徴適用完了: ${appliedCount}個のパラメータを調整 (検証済み)`);
+      // console.log(`✅ 顔特徴適用完了: ${appliedCount}個のパラメータを調整 (検証済み)`);
       
     } catch (error) {
-      console.warn('❌ 顔特徴適用エラー:', error);
+      // console.warn('❌ 顔特徴適用エラー:', error);
     }
   };
 
