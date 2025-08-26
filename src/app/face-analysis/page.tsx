@@ -48,7 +48,7 @@ function FaceAnalysisContent() {
         if (hasFaceFeatures()) {
           const savedData = getFaceFeatures();
           if (savedData) {
-            console.log('💾 保存済み顔特徴データを発見:', savedData);
+            // console.log('💾 保存済み顔特徴データを発見:', savedData);
             setPhotoFeatures(savedData.features);
             if (savedData.photoDataUrl) {
               setUploadedImage(savedData.photoDataUrl);
@@ -144,11 +144,11 @@ function FaceAnalysisContent() {
     const file = event.target.files?.[0];
     if (!file || !faceLandmarkerImage) return;
 
-    console.log('🔍 画像アップロード開始:', {
-      fileName: file.name,
-      fileType: file.type,
-      fileSize: file.size
-    });
+    // console.log('🔍 画像アップロード開始:', {
+    //   fileName: file.name,
+    //   fileType: file.type,
+    //   fileSize: file.size
+    // });
 
     // ファイル形式チェック
     if (file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif')) {
@@ -190,7 +190,7 @@ function FaceAnalysisContent() {
       return;
     }
     
-    console.log('🚀 AI解析開始');
+    // console.log('🚀 AI解析開始');
     setIsAnalyzing(true);
     setAnalysisProgress(0);
     setAnalysisStep('画像準備中...');
@@ -268,16 +268,26 @@ function FaceAnalysisContent() {
         drawLandmarks(ctx, landmarks, width, height);
         
         // 特徴量計算
-        console.log('📏 特徴量計算開始...');
+        // console.log('📏 特徴量計算開始...');
         const calculatedFeatures = calculateDetailedFeatures(landmarks, processingTime);
-        console.log('✅ 特徴量計算完了:', calculatedFeatures);
+        // console.log('✅ 特徴量計算完了:', calculatedFeatures);
         setPhotoFeatures(calculatedFeatures);
         setIsNewImageUploaded(false); // 解析完了後はフラグをリセット
-        console.log('🖼️ photoFeaturesセット完了、VRMプレビュー表示中...');
+        // console.log('🖼️ photoFeaturesセット完了、VRMプレビュー表示中...');
         
         // BlendShape値計算と保存
         const converter = new BlendShapeConverter(DEFAULT_BLENDSHAPE_CONFIG);
         const blendShapeValues = converter.convertFaceFeaturesToBlendShapes(calculatedFeatures);
+        
+        // 🎯 簡潔な顔特徴適用ログ出力
+        const mainFeatures = [
+          `目幅${calculatedFeatures.eyeWidth.toFixed(2)}`,
+          `鼻幅${calculatedFeatures.noseWidth.toFixed(2)}`, 
+          `口幅${calculatedFeatures.mouthWidth.toFixed(2)}`
+        ].join(' | ');
+        const appliedCount = Object.keys(blendShapeValues).filter(key => Math.abs(blendShapeValues[key]) > 0.01).length;
+        const totalCount = Object.keys(blendShapeValues).length;
+        console.log(`🎯 顔特徴→BlendShape適用: ${mainFeatures} (${appliedCount}/${totalCount}個適用)`);
         
         // ローカルストレージに保存
         const faceData = createFaceFeatureData(calculatedFeatures, blendShapeValues, uploadedImage);
@@ -310,17 +320,17 @@ function FaceAnalysisContent() {
 
   // 詳細特徴量計算（WSL準拠・完全移植版）
   const calculateDetailedFeatures = (landmarks: Array<{x: number, y: number, z?: number}>, processingTime: number): FaceFeatures => {
-    console.log('🔍 特徴量計算実行中...', `ランドマーク数: ${landmarks.length}`);
+    // console.log('🔍 特徴量計算実行中...', `ランドマーク数: ${landmarks.length}`);
     
     // デバッグ用：主要ランドマーク座標を確認
-    console.log('📍 主要ランドマーク座標確認:');
-    console.log('  顔上端(10):', landmarks[10]);
-    console.log('  顔下端(152):', landmarks[152]);  
-    console.log('  顔左端(234):', landmarks[234]);
-    console.log('  顔右端(454):', landmarks[454]);
-    console.log('  左目外側(33):', landmarks[33]);
-    console.log('  左目内側(133):', landmarks[133]);
-    console.log('  右目内側(362):', landmarks[362]);
+    // console.log('📍 主要ランドマーク座標確認:');
+    // console.log('  顔上端(10):', landmarks[10]);
+    // console.log('  顔下端(152):', landmarks[152]);  
+    // console.log('  顔左端(234):', landmarks[234]);
+    // console.log('  顔右端(454):', landmarks[454]);
+    // console.log('  左目外側(33):', landmarks[33]);
+    // console.log('  左目内側(133):', landmarks[133]);
+    // console.log('  右目内側(362):', landmarks[362]);
     
     try {
       // 仕様書準拠: 顔のベース寸法を最初に計算
@@ -333,10 +343,10 @@ function FaceAnalysisContent() {
       const faceHeight = Math.abs(faceBottom.y - faceTop.y);
       const faceAspectRatio = faceHeight / faceWidth; // 仕様書のfaceRatio相当
       
-      console.log('📐 基本寸法計算結果:');
-      console.log(`  顔幅: ${faceWidth.toFixed(4)} (${faceRight.x.toFixed(4)} - ${faceLeft.x.toFixed(4)})`);
-      console.log(`  顔高: ${faceHeight.toFixed(4)} (${faceBottom.y.toFixed(4)} - ${faceTop.y.toFixed(4)})`);
-      console.log(`  顔比率: ${faceAspectRatio.toFixed(4)}`);
+      // console.log('📐 基本寸法計算結果:');
+      // console.log(`  顔幅: ${faceWidth.toFixed(4)} (${faceRight.x.toFixed(4)} - ${faceLeft.x.toFixed(4)})`);
+      // console.log(`  顔高: ${faceHeight.toFixed(4)} (${faceBottom.y.toFixed(4)} - ${faceTop.y.toFixed(4)})`);
+      // console.log(`  顔比率: ${faceAspectRatio.toFixed(4)}`);
 
       // 目の特徴（左目基準）
       const leftEyeOuter = landmarks[33];
@@ -366,12 +376,12 @@ function FaceAnalysisContent() {
 
       const eyeAspectRatio = eyeHeight / eyeWidth;
       
-      console.log('👁️ 目の特徴計算結果:');
-      console.log(`  生の目幅: ${Math.hypot(leftEyeOuter.x - leftEyeInner.x, leftEyeOuter.y - leftEyeInner.y).toFixed(4)}`);
-      console.log(`  正規化後目幅: ${eyeWidth.toFixed(4)}`);
-      console.log(`  生の目高: ${Math.hypot(leftEyeTop.x - leftEyeBottom.x, leftEyeTop.y - leftEyeBottom.y).toFixed(4)}`);
-      console.log(`  正規化後目高: ${eyeHeight.toFixed(4)}`);
-      console.log(`  目のアスペクト比: ${eyeAspectRatio.toFixed(4)}`);
+      // console.log('👁️ 目の特徴計算結果:');
+      // console.log(`  生の目幅: ${Math.hypot(leftEyeOuter.x - leftEyeInner.x, leftEyeOuter.y - leftEyeInner.y).toFixed(4)}`);
+      // console.log(`  正規化後目幅: ${eyeWidth.toFixed(4)}`);
+      // console.log(`  生の目高: ${Math.hypot(leftEyeTop.x - leftEyeBottom.x, leftEyeTop.y - leftEyeBottom.y).toFixed(4)}`);
+      // console.log(`  正規化後目高: ${eyeHeight.toFixed(4)}`);
+      // console.log(`  目のアスペクト比: ${eyeAspectRatio.toFixed(4)}`);
 
       // 仕様書準拠: 目の傾斜角度計算（eyeTilt）
       // 推定レンジ: -15°～+15°
@@ -525,73 +535,20 @@ function FaceAnalysisContent() {
         processingTime: Number(processingTime.toFixed(2))
       };
       
-      console.log('✅ 特徴量計算結果:');
-      console.log('📊 数値検証:');
-      console.log(`  目幅 (0-1正規化): ${result.eyeWidth} (範囲: 0.0-1.0)`);
-      console.log(`  目高 (0-1正規化): ${result.eyeHeight} (範囲: 0.0-1.0)`);
-      console.log(`  目間隔 (正規化): ${result.eyeDistance} (範囲: 0.05-0.15)`);
-      console.log(`  目角度: ${result.eyeAngle}° (範囲: -15°～+15°)`);
-      console.log(`  鼻幅 (0-1正規化): ${result.noseWidth} (範囲: 0.0-1.0)`);
-      console.log(`  口幅 (0-1正規化): ${result.mouthWidth} (範囲: 0.0-1.0)`);
-      console.log(`  顔幅比率: ${result.faceWidth} (範囲: 1.2-1.8)`);
+      // 簡潔な結果表示（テスト用）
+      // console.log('✅ 顔特徴検出完了');
+      // console.log(`目幅: ${result.eyeWidth.toFixed(3)} | 目高: ${result.eyeHeight.toFixed(3)} | 鼻幅: ${result.noseWidth.toFixed(3)} | 口幅: ${result.mouthWidth.toFixed(3)}`);
       
-      // ==== 🔍 検出感度分析 ====
-      console.log('🔍 === 検出感度分析 ===');
-      console.log('📐 自然範囲正規化計算値（丸め込み後）:');
-      console.log(`  目幅: ${eyeWidth.toFixed(6)} (生値: ${eyeWidthNormalizedByFace.toFixed(6)}, 丸め前: ${eyeWidthRaw.toFixed(6)})`);
-      console.log(`  目高: ${eyeHeight.toFixed(6)} (生値: ${eyeHeightNormalizedByFace.toFixed(6)}, 丸め前: ${eyeHeightRaw.toFixed(6)})`);
-      console.log(`  鼻幅: ${noseWidth.toFixed(6)} (生値: ${noseWidthNormalizedByFace.toFixed(6)}, 丸め前: ${noseWidthRaw.toFixed(6)})`);
-      console.log(`  口幅: ${mouthWidth.toFixed(6)} (生値: ${mouthWidthNormalizedByFace.toFixed(6)}, 丸め前: ${mouthWidthRaw.toFixed(6)})`);
-      console.log(`  生の顔比率: ${faceAspectRatio.toFixed(6)}`);
-      console.log(`  生の顎角度: ${jawAngle.toFixed(2)}° (シャープ度: ${jawSharpness.toFixed(4)})`);
-      
-      console.log('📊 範囲外値の丸め込み状況:');
-      // 丸め込みが発生したかどうかをチェック
-      const clampedValues = [];
-      if (eyeWidthRaw < 0 || eyeWidthRaw > 1) clampedValues.push(`目幅: ${eyeWidthRaw.toFixed(3)}→${eyeWidth.toFixed(3)}`);
-      if (eyeHeightRaw < 0 || eyeHeightRaw > 1) clampedValues.push(`目高: ${eyeHeightRaw.toFixed(3)}→${eyeHeight.toFixed(3)}`);
-      if (noseWidthRaw < 0 || noseWidthRaw > 1) clampedValues.push(`鼻幅: ${noseWidthRaw.toFixed(3)}→${noseWidth.toFixed(3)}`);
-      if (mouthWidthRaw < 0 || mouthWidthRaw > 1) clampedValues.push(`口幅: ${mouthWidthRaw.toFixed(3)}→${mouthWidth.toFixed(3)}`);
-      
-      if (clampedValues.length > 0) {
-        console.log(`🔒 丸め込み発生: ${clampedValues.join(', ')}`);
-      } else {
-        console.log('✅ すべて自然に0-1範囲内');
-      }
-      
-      const eyeWidthVariance = (eyeWidth - 0.5) / 0.25; 
-      const eyeHeightVariance = (eyeHeight - 0.5) / 0.25;
-      const noseWidthVariance = (noseWidth - 0.5) / 0.25;
-      const mouthWidthVariance = (mouthWidth - 0.5) / 0.25;
-      console.log(`  目幅の偏差: ${eyeWidthVariance.toFixed(2)}σ`);
-      console.log(`  目高の偏差: ${eyeHeightVariance.toFixed(2)}σ`);
-      console.log(`  鼻幅の偏差: ${noseWidthVariance.toFixed(2)}σ`);
-      console.log(`  口幅の偏差: ${mouthWidthVariance.toFixed(2)}σ`);
-      
-      // 0-1範囲異常値チェック
-      const issues = [];
-      if (result.eyeWidth < 0 || result.eyeWidth > 1) issues.push(`目幅範囲外: ${result.eyeWidth}`);
-      if (result.eyeHeight < 0 || result.eyeHeight > 1) issues.push(`目高範囲外: ${result.eyeHeight}`);
-      if (result.noseWidth < 0 || result.noseWidth > 1) issues.push(`鼻幅範囲外: ${result.noseWidth}`);
-      if (result.mouthWidth < 0 || result.mouthWidth > 1) issues.push(`口幅範囲外: ${result.mouthWidth}`);
-      
-      if (issues.length > 0) {
-        console.warn('⚠️ 0-1範囲外の値検出:', issues);
-      } else {
-        console.log('✅ すべての値が0-1範囲内');
-      }
-      
-      // 0-1範囲での検出感度評価
-      const lowVarianceFeatures = [];
-      if (Math.abs(eyeWidthVariance) < 0.5) lowVarianceFeatures.push('目幅');
-      if (Math.abs(eyeHeightVariance) < 0.5) lowVarianceFeatures.push('目高');
-      if (Math.abs(noseWidthVariance) < 0.5) lowVarianceFeatures.push('鼻幅');
-      if (Math.abs(mouthWidthVariance) < 0.5) lowVarianceFeatures.push('口幅');
-      
-      if (lowVarianceFeatures.length > 0) {
-        console.warn(`⚠️ 検出感度が低い特徴: ${lowVarianceFeatures.join(', ')} (標準的な顔に近すぎる)`);
-        console.warn('💡 これらの特徴は個人差を検出しにくい可能性があります');
-      }
+      // 極端値の確認（重要な情報のみ）
+      // const clampedValues = [];
+      // if (eyeWidthRaw < 0 || eyeWidthRaw > 1) clampedValues.push(`目幅: ${eyeWidthRaw.toFixed(3)}→${eyeWidth.toFixed(3)}`);
+      // if (eyeHeightRaw < 0 || eyeHeightRaw > 1) clampedValues.push(`目高: ${eyeHeightRaw.toFixed(3)}→${eyeHeight.toFixed(3)}`);
+      // if (noseWidthRaw < 0 || noseWidthRaw > 1) clampedValues.push(`鼻幅: ${noseWidthRaw.toFixed(3)}→${noseWidth.toFixed(3)}`);
+      // if (mouthWidthRaw < 0 || mouthWidthRaw > 1) clampedValues.push(`口幅: ${mouthWidthRaw.toFixed(3)}→${mouthWidth.toFixed(3)}`);
+      // 
+      // if (clampedValues.length > 0) {
+      //   console.log(`🔒 極端値丸め込み: ${clampedValues.join(', ')}`);
+      // }
       
       return result;
     } catch (error) {
@@ -603,7 +560,7 @@ function FaceAnalysisContent() {
         faceWidth: 0, jawWidth: 0,
         processingTime: Number(processingTime.toFixed(2))
       };
-      console.log('⚠️ フォールバック結果:', fallbackResult);
+      // console.log('⚠️ フォールバック結果:', fallbackResult);
       return fallbackResult;
     }
   };

@@ -137,7 +137,7 @@ export function useBlendShapeStore(initialConfig: BlendShapeConfig): BlendShapeS
       
       // バージョンチェック
       if (importData.version !== '1.0') {
-        console.warn('未対応のデータバージョンです:', importData.version);
+        // console.warn('未対応のデータバージョンです:', importData.version);
         return false;
       }
 
@@ -159,7 +159,7 @@ export function useBlendShapeStore(initialConfig: BlendShapeConfig): BlendShapeS
 
       return true;
     } catch (error) {
-      console.error('インポートエラー:', error);
+      // console.error('インポートエラー:', error);
       return false;
     }
   }, []);
@@ -182,7 +182,7 @@ export function useBlendShapeStore(initialConfig: BlendShapeConfig): BlendShapeS
         if (data.config) setConfig(data.config);
       }
     } catch (error) {
-      console.error('ストレージ読み込みエラー:', error);
+      // console.error('ストレージ読み込みエラー:', error);
     }
   }, []);
 
@@ -198,7 +198,7 @@ export function useBlendShapeStore(initialConfig: BlendShapeConfig): BlendShapeS
       };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     } catch (error) {
-      console.error('ストレージ保存エラー:', error);
+      // console.error('ストレージ保存エラー:', error);
     }
   }, [currentValues, savedPresets, config]);
 

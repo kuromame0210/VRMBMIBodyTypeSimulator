@@ -17,7 +17,7 @@ export const saveSelectedAvatar = (avatarId: string): void => {
   try {
     localStorage.setItem(AVATAR_SELECTION_KEY, avatarId);
   } catch (error) {
-    console.warn('ローカルストレージへの保存に失敗:', error);
+    // console.warn('ローカルストレージへの保存に失敗:', error);
   }
 };
 
@@ -25,7 +25,7 @@ export const getSelectedAvatar = (): string | null => {
   try {
     return localStorage.getItem(AVATAR_SELECTION_KEY);
   } catch (error) {
-    console.warn('ローカルストレージからの読み込みに失敗:', error);
+    // console.warn('ローカルストレージからの読み込みに失敗:', error);
     return null;
   }
 };
@@ -34,7 +34,7 @@ export const clearSelectedAvatar = (): void => {
   try {
     localStorage.removeItem(AVATAR_SELECTION_KEY);
   } catch (error) {
-    console.warn('ローカルストレージからの削除に失敗:', error);
+    // console.warn('ローカルストレージからの削除に失敗:', error);
   }
 };
 
@@ -48,7 +48,7 @@ export const saveFaceFeatures = (faceFeatures: SavedFaceFeatures): void => {
   try {
     localStorage.setItem(FACE_FEATURES_KEY, JSON.stringify(faceFeatures));
   } catch (error) {
-    console.warn('顔特徴データの保存に失敗:', error);
+    // console.warn('顔特徴データの保存に失敗:', error);
   }
 };
 
@@ -57,7 +57,7 @@ export const getFaceFeatures = (): SavedFaceFeatures | null => {
     const data = localStorage.getItem(FACE_FEATURES_KEY);
     return data ? JSON.parse(data) : null;
   } catch (error) {
-    console.warn('顔特徴データの読み込みに失敗:', error);
+    // console.warn('顔特徴データの読み込みに失敗:', error);
     return null;
   }
 };
@@ -66,7 +66,7 @@ export const clearFaceFeatures = (): void => {
   try {
     localStorage.removeItem(FACE_FEATURES_KEY);
   } catch (error) {
-    console.warn('顔特徴データの削除に失敗:', error);
+    // console.warn('顔特徴データの削除に失敗:', error);
   }
 };
 

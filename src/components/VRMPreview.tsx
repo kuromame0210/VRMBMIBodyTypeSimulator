@@ -441,6 +441,7 @@ export default function VRMPreview({
       let appliedCount = 0;
       let totalCount = 0;
       const detailedResults: Array<{shapeName: string, inputValue: number, finalValue: number, targetIndex: number, meshName: string, changed: boolean}> = [];
+      const significantManualChanges: Array<{name: string, value: number}> = [];
       
       // console.log('🔍 === 手動BlendShape値適用検証開始 ===');
       // console.log(`📥 入力BlendShape値: ${Object.keys(blendShapeValues).length}個`);
@@ -472,10 +473,10 @@ export default function VRMPreview({
               changed
             });
             
-            // WSL準拠: 変化の詳細ログ（重要なBlendShapeまたは大きな変化）
-            // if (((['Mouth_Wide', 'Eye_Close', 'Nose_Wide'].includes(shapeName)) || Math.abs(clampedValue - previousValue) > 0.05) && changed) {
-            //   console.log(`🎯 ${shapeName}[${targetIndex}] @${target.mesh.name}: ${previousValue.toFixed(3)} → ${clampedValue.toFixed(3)} (Δ${(clampedValue - previousValue).toFixed(3)})`);
-            // }
+            // Track significant manual changes for logging
+            if (clampedValue > 0.01 && changed) {
+              significantManualChanges.push({name: shapeName.replace('_', ''), value: clampedValue});
+            }
             
             appliedCount++;
           } else {
@@ -485,35 +486,12 @@ export default function VRMPreview({
         });
       });
       
-      // 詳細な結果検証
-      // console.log('📊 === 手動BlendShape適用結果検証 ===');
-      // console.log(`✅ 適用済み総数: ${appliedCount}/${totalCount}`);
-      
-      if (totalCount > 0) {
-        const successRate = (appliedCount / totalCount) * 100;
-        // console.log(`📈 成功率: ${successRate.toFixed(1)}%`);
-        
-        // 実際に変化したBlendShapeの統計
-        const changedResults = detailedResults.filter(r => r.changed);
-        // console.log(`🔄 実際に変化: ${changedResults.length}個`);
-        
-        // 効果的な変化（> 0.05）のBlendShape
-        const significantChanges = changedResults.filter(r => r.finalValue > 0.05);
-        // console.log(`🎯 効果的変化 (>0.05): ${significantChanges.length}個`);
-        // significantChanges.forEach(r => {
-        //   console.log(`   ${r.shapeName}: ${r.finalValue.toFixed(3)} @${r.meshName}`);
-        // });
-        
-        // 微小変化の警告
-        const minorChanges = changedResults.filter(r => r.finalValue <= 0.05 && r.finalValue > 0);
-        if (minorChanges.length > 0) {
-          // console.warn(`🔸 微小変化 (≤0.05): ${minorChanges.length}個 - 視覚的効果が限定的な可能性`);
-          // minorChanges.slice(0, 5).forEach(r => {
-          //   console.warn(`   ${r.shapeName}: ${r.finalValue.toFixed(3)} @${r.meshName}`);
-          // });
-        }
-        
-        // console.log(`✅ 最適化BlendShape適用完了: ${appliedCount}/${totalCount} (${successRate.toFixed(1)}%) - 検証済み`);
+      // 🎯 手動BlendShape適用完了ログ - 重要な変化のみ簡潔に出力
+      if (significantManualChanges.length > 0 && totalCount > 0) {
+        const changesStr = significantManualChanges
+          .map(change => `${change.name}:${change.value.toFixed(2)}`)
+          .join(' ');
+        console.log(`🎯 手動BlendShape適用完了: ${changesStr} (${significantManualChanges.length}/${Object.keys(blendShapeValues).length}個適用)`);
       }
     } catch (error) {
       // console.warn('❌ 最適化BlendShape適用エラー:', error);
@@ -557,6 +535,7 @@ export default function VRMPreview({
       // WSL仕様: expressionManager方式とmorphTarget方式の両方をサポート
       let appliedCount = 0;
       const appliedBlendShapes: Array<{name: string, inputValue: number, calculatedValue: number, finalValue: number, method: string}> = [];
+      const significantChanges: Array<{name: string, value: number}> = [];
       
       // console.log('🔍 === BlendShape反映検証開始 ===');
       // console.log('📥 入力顔特徴値:', {
@@ -586,7 +565,10 @@ export default function VRMPreview({
             method: 'expressionManager'
           });
           // console.log(`🎯 eye_wide: 入力${inputValue.toFixed(4)} → 計算${calculatedValue.toFixed(4)} → 最終${finalValue.toFixed(4)} (前値: ${previousValue.toFixed(4)})`);
-          if (finalValue > 0) appliedCount++;
+          if (finalValue > 0.01) {
+            appliedCount++;
+            significantChanges.push({name: 'EyeWide', value: finalValue});
+          }
         }
         
         // WSL準拠: 詳細な口の調整（閾値調整済み）
@@ -604,7 +586,10 @@ export default function VRMPreview({
             method: 'expressionManager'
           });
           // console.log(`🎯 mouth_wide: 入力${inputValue.toFixed(4)} → 計算${calculatedValue.toFixed(4)} → 最終${finalValue.toFixed(4)} (前値: ${previousValue.toFixed(4)})`);
-          if (finalValue > 0) appliedCount++;
+          if (finalValue > 0.01) {
+            appliedCount++;
+            significantChanges.push({name: 'MouthWide', value: finalValue});
+          }
         }
         
         // WSL準拠: 鼻の調整（新規追加）
@@ -622,7 +607,10 @@ export default function VRMPreview({
             method: 'expressionManager'
           });
           // console.log(`🎯 nose_wide: 入力${inputValue.toFixed(4)} → 計算${calculatedValue.toFixed(4)} → 最終${finalValue.toFixed(4)} (前値: ${previousValue.toFixed(4)})`);
-          if (finalValue > 0) appliedCount++;
+          if (finalValue > 0.01) {
+            appliedCount++;
+            significantChanges.push({name: 'NoseWide', value: finalValue});
+          }
         }
         
         vrm.expressionManager.update();
@@ -654,7 +642,10 @@ export default function VRMPreview({
                 method: 'morphTarget'
               });
               // console.log(`🎯 Mouth_Wide[${mouthWideIndex}]: 入力${inputValue.toFixed(4)} → 計算${calculatedValue.toFixed(4)} → 最終${finalValue.toFixed(4)} (前値: ${previousValue.toFixed(4)})`);
-              if (finalValue > 0) appliedCount++;
+              if (finalValue > 0.01) {
+                appliedCount++;
+                significantChanges.push({name: 'MouthWide', value: finalValue});
+              }
             }
             
             // WSL準拠: Eye_Close系の調整
@@ -674,7 +665,10 @@ export default function VRMPreview({
                   method: 'morphTarget'
                 });
                 // console.log(`🎯 ${eyeShape}[${index}]: 入力${inputValue.toFixed(4)} → 計算${calculatedValue.toFixed(4)} → 最終${finalValue.toFixed(4)} (前値: ${previousValue.toFixed(4)})`);
-                if (finalValue > 0) appliedCount++;
+                if (finalValue > 0.01) {
+                  appliedCount++;
+                  significantChanges.push({name: eyeShape.replace('_', ''), value: finalValue});
+                }
               }
             });
             
@@ -697,35 +691,24 @@ export default function VRMPreview({
                   method: 'morphTarget'
                 });
                 // console.log(`🎯 ${noseShape}[${index}]: 入力${inputValue.toFixed(4)} → 計算${calculatedValue.toFixed(4)} → 最終${finalValue.toFixed(4)} (前値: ${previousValue.toFixed(4)})`);
-                if (finalValue > 0) appliedCount++;
+                if (finalValue > 0.01) {
+                  appliedCount++;
+                  significantChanges.push({name: noseShape.replace('_', ''), value: finalValue});
+                }
               }
             });
           }
         });
       }
       
-      // BlendShape反映結果の総合検証
-      // console.log('📊 === BlendShape反映結果検証 ===');
-      // console.log(`✅ 適用済みBlendShape総数: ${appliedBlendShapes.length}個`);
-      // console.log(`🔧 値が変更されたBlendShape: ${appliedCount}個`);
-      
-      // 効果的に反映されたBlendShapeの詳細
-      const effectiveBlendShapes = appliedBlendShapes.filter(bs => bs.finalValue > 0.01);
-      // console.log(`🎯 効果的反映 (>0.01): ${effectiveBlendShapes.length}個`);
-      // effectiveBlendShapes.forEach(bs => {
-      //   console.log(`   ${bs.name}: ${bs.finalValue.toFixed(3)} (${bs.method})`);
-      // });
-      
-      // 反映されなかったBlendShapeの警告
-      const ineffectiveBlendShapes = appliedBlendShapes.filter(bs => bs.finalValue <= 0.01);
-      if (ineffectiveBlendShapes.length > 0) {
-        // console.warn(`⚠️ 反映されなかったBlendShape: ${ineffectiveBlendShapes.length}個`);
-        // ineffectiveBlendShapes.forEach(bs => {
-        //   console.warn(`   ${bs.name}: 入力${bs.inputValue.toFixed(4)} → 最終${bs.finalValue.toFixed(4)} (閾値以下)`);
-        // });
+      // 🎯 VRM適用完了ログ - 重要な変化のみ簡潔に出力
+      if (significantChanges.length > 0) {
+        const changesStr = significantChanges
+          .map(change => `${change.name}:${change.value.toFixed(2)}`)
+          .join(' ');
+        const totalAvailableShapes = availableShapes.length;
+        console.log(`🎯 VRM適用完了: ${changesStr} (${significantChanges.length}/${totalAvailableShapes}個適用)`);
       }
-      
-      // console.log(`✅ 顔特徴適用完了: ${appliedCount}個のパラメータを調整 (検証済み)`);
       
     } catch (error) {
       // console.warn('❌ 顔特徴適用エラー:', error);

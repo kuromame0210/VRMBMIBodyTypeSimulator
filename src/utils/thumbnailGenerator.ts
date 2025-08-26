@@ -47,7 +47,7 @@ export class ThumbnailGenerator {
     this.scene.add(frontLight);
 
     this.initialized = true;
-    console.log('🎨 ThumbnailGenerator初期化完了');
+    // console.log('🎨 ThumbnailGenerator初期化完了');
   }
 
   /**
@@ -60,7 +60,7 @@ export class ThumbnailGenerator {
       const loader = new GLTFLoader();
       loader.register((parser) => new VRMLoaderPlugin(parser));
 
-      console.log('📸 サムネイル生成開始:', vrmPath);
+      // console.log('📸 サムネイル生成開始:', vrmPath);
 
       loader.load(
         vrmPath,
@@ -72,13 +72,13 @@ export class ThumbnailGenerator {
           const vrm = gltf.userData.vrm;
           if (vrm) {
             // VRMの場合
-            console.log('VRMデータ検出:', vrmPath);
+            // console.log('VRMデータ検出:', vrmPath);
             targetScene = vrm.scene;
             isVRM = true;
             VRMUtils.rotateVRM0(vrm);
           } else {
             // 通常のGLBファイルの場合
-            console.log('通常のGLBファイル:', vrmPath);
+            // console.log('通常のGLBファイル:', vrmPath);
             targetScene = gltf.scene;
           }
 
@@ -136,14 +136,14 @@ export class ThumbnailGenerator {
             }
           });
 
-          console.log('✅ サムネイル生成完了:', vrmPath);
+          // console.log('✅ サムネイル生成完了:', vrmPath);
           resolve(dataURL);
         },
         (progress) => {
-          console.log('📊 サムネイル生成進捗:', Math.round((progress.loaded / progress.total) * 100) + '%');
+          // console.log('📊 サムネイル生成進捗:', Math.round((progress.loaded / progress.total) * 100) + '%');
         },
         (error) => {
-          console.error('❌ サムネイル生成失敗:', error);
+          // console.error('❌ サムネイル生成失敗:', error);
           reject(error);
         }
       );
@@ -209,7 +209,7 @@ export class ThumbnailGenerator {
         const thumbnail = await this.generateThumbnail(path);
         thumbnails[path] = thumbnail;
       } catch (error) {
-        console.error(`サムネイル生成失敗 ${path}:`, error);
+        // console.error(`サムネイル生成失敗 ${path}:`, error);
         // デフォルトのプレースホルダー画像を設定
         thumbnails[path] = '/placeholder-avatar.png';
       }
@@ -224,9 +224,9 @@ export class ThumbnailGenerator {
   static saveThumbnailsToStorage(thumbnails: Record<string, string>) {
     try {
       localStorage.setItem('vrm-thumbnails', JSON.stringify(thumbnails));
-      console.log('💾 サムネイルをローカルストレージに保存しました');
+      // console.log('💾 サムネイルをローカルストレージに保存しました');
     } catch (error) {
-      console.error('ローカルストレージへの保存に失敗:', error);
+      // console.error('ローカルストレージへの保存に失敗:', error);
     }
   }
 
@@ -240,7 +240,7 @@ export class ThumbnailGenerator {
         return JSON.parse(stored);
       }
     } catch (error) {
-      console.error('ローカルストレージからの読み込みに失敗:', error);
+      // console.error('ローカルストレージからの読み込みに失敗:', error);
     }
     return {};
   }
@@ -256,6 +256,6 @@ export class ThumbnailGenerator {
       this.scene.clear();
     }
     this.initialized = false;
-    console.log('🧹 ThumbnailGenerator クリーンアップ完了');
+    // console.log('🧹 ThumbnailGenerator クリーンアップ完了');
   }
 }
