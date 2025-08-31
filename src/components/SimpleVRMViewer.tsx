@@ -60,6 +60,8 @@ export default function SimpleVRMViewer({
   useEffect(() => {
     // VRMが変更された時にターゲットをリセット
     setBlendShapeTargets([]);
+    setVrmLoaded(false);           // アバター変更時にVRM読み込み状態をリセット
+    setInitialFaceApplied(false);  // 顔特徴適用状態もリセット
     isFirstRunRef.current = true;
     
     setComponentInitCount(prev => {
@@ -76,7 +78,7 @@ export default function SimpleVRMViewer({
   const containerRef = useRef<HTMLDivElement>(null);
   const vrmRef = useRef<any>(null);
   const [animationStatus, setAnimationStatus] = useState<string>('ロード中...');
-  const [currentFatnessValue, setCurrentFatnessValue] = useState<number>(0.4); // レベル4（0.4）で初期化
+  const [currentFatnessValue, setCurrentFatnessValue] = useState<number>(0.2); // レベル2（0.2）で初期化
   const [autoSimulation, setAutoSimulation] = useState<boolean>(false); // 外部制御に変更
   const [simulationMonth, setSimulationMonth] = useState<number>(0);
   const [simulationCompleted, setSimulationCompleted] = useState<boolean>(false); // シミュレーション完了状態
@@ -84,11 +86,14 @@ export default function SimpleVRMViewer({
   const simulationTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isExplicitReset = useRef<boolean>(false); // 明示的リセット中フラグ
   const animateToTargetFatnessRef = useRef<((targetValue: number, source: string) => void) | null>(null);
+  
+  // ===== 3秒間隔ログ機能 (削除予定) =====
+  const statusLoggingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // シミュレーション状態変更ログ
   useEffect(() => {
-    // if (autoSimulation) console.log('🚀 シミュレーション開始');
-    // else console.log('⏹️ シミュレーション停止');
+    if (autoSimulation) console.log('🚀 シミュレーション開始');
+    else console.log('⏹️ シミュレーション停止');
   }, [autoSimulation]);
 
   // VRM読み込み状態を管理
@@ -324,17 +329,23 @@ export default function SimpleVRMViewer({
 
     // ファイルの読み込み
     function load(url: string) {
+      console.log('🔄 [DEBUG] ファイル読み込み開始:', url); // デバッグログ追加
       loader.load(
         url,
         // ロード時に呼ばれる
         (gltf) => {
+          console.log('✅ [DEBUG] ファイル読み込み成功:', url); // デバッグログ追加
           tryInitVRM(gltf);
           tryInitVRMA(gltf);
         },
         // プログレス時に呼ばれる
-        (progress) => {},
+        (progress) => {
+          console.log('⏳ [DEBUG] 読み込み進捗:', Math.round((progress.loaded / progress.total) * 100) + '%'); // デバッグログ追加
+        },
         // エラー時に呼ばれる
-        (error) => {/* エラーログ無効化 */}
+        (error) => {
+          console.error('❌ [DEBUG] ファイル読み込みエラー:', error); // デバッグログ追加
+        }
       );
     }
 
@@ -343,17 +354,18 @@ export default function SimpleVRMViewer({
       const vrm = gltf.userData.vrm;
       if (vrm == null) {
         // VRMでない場合も通常のGLTFとして読み込んでみる
+        console.log('🔍 [DEBUG] GLBファイル処理開始 gltf.scene:', !!gltf.scene); // デバッグログ追加
         if (gltf.scene) {
-          // console.log('✅ GLTF読み込み完了');
+          console.log('✅ [DEBUG] GLB読み込み完了 - シーンをセットアップ中'); // デバッグログ追加
           currentVrm = { scene: gltf.scene, userData: gltf };
           vrmRef.current = currentVrm;
           scene.add(gltf.scene);
           
           // シミュレーション中は現在の値を保持、そうでなければ初期値を適用
-          const targetFatness = autoSimulation ? currentFatnessValue : 0.4;
-          updateFatnessBlendShape(targetFatness, `VRM読み込み完了: ${autoSimulation ? 'シミュレーション値保持' : '初期値レベル4'}`);
+          const targetFatness = autoSimulation ? currentFatnessValue : 0.2;
+          updateFatnessBlendShape(targetFatness, `VRM読み込み完了: ${autoSimulation ? 'シミュレーション値保持' : '初期値レベル2'}`);
           if (!autoSimulation) {
-            setCurrentFatnessValue(0.4);
+            setCurrentFatnessValue(0.2);
           }
           
           // BlendShapeターゲット収集
@@ -373,6 +385,7 @@ export default function SimpleVRMViewer({
           setAnimationStatus('GLTFファイル読み込み完了');
           
           // 読み込み完了状態を最後に設定（顔特徴適用完了後）
+          console.log('🎯 [DEBUG] setVrmLoaded(true) 実行 - GLBファイル'); // デバッグログ追加
           setVrmLoaded(true);
         }
         return;
@@ -385,10 +398,10 @@ export default function SimpleVRMViewer({
       VRMUtils.rotateVRM0(vrm);
       
       // シミュレーション中は現在の値を保持、そうでなければ初期値を適用
-      const targetFatness = autoSimulation ? currentFatnessValue : 0.4;
-      updateFatnessBlendShape(targetFatness, `VRM読み込み完了: ${autoSimulation ? 'シミュレーション値保持' : '初期値レベル4'}`);
+      const targetFatness = autoSimulation ? currentFatnessValue : 0.2;
+      updateFatnessBlendShape(targetFatness, `VRM読み込み完了: ${autoSimulation ? 'シミュレーション値保持' : '初期値レベル2'}`);
       if (!autoSimulation) {
-        setCurrentFatnessValue(0.4);
+        setCurrentFatnessValue(0.2);
       }
       
       // BlendShapeターゲット収集
@@ -603,9 +616,9 @@ export default function SimpleVRMViewer({
                   // リセット現象検出（重要なもののみ）
                   if (Math.abs(oldValue - fatnessValue) > 0.001) {
                     const isResetPhenomenon = (oldValue > fatnessValue) && autoSimulation;
-                    // レベル4(0.4)への戻りを特に監視
-                    const isLevel4Reset = Math.abs(fatnessValue - 0.4) < 0.001;
-                    if (isResetPhenomenon || isLevel4Reset) {
+                    // レベル2(0.2)への戻りを特に監視
+                    const isLevel2Reset = Math.abs(fatnessValue - 0.2) < 0.001;
+                    if (isResetPhenomenon || isLevel2Reset) {
                       // console.log(`🚨 リセット現象検出: ${oldValue.toFixed(3)} → ${fatnessValue.toFixed(3)} (source: ${source})`);
                     }
                   }
@@ -621,8 +634,8 @@ export default function SimpleVRMViewer({
 
   // スムーズなアニメーション用の補間関数（重複防止機能付き）
   const animateToTargetFatness = useCallback((targetValue: number, source: string) => {
-    // レベル4(0.4)への変更を特に監視
-    if (Math.abs(targetValue - 0.4) < 0.001 && autoSimulation) {
+    // レベル2(0.2)への変更を特に監視
+    if (Math.abs(targetValue - 0.2) < 0.001 && autoSimulation) {
       // console.log(`🔍 シミュレーション中にレベル4要求: ${currentFatnessValue.toFixed(3)} → ${targetValue.toFixed(3)} (source: ${source})`);
       // console.trace('呼び出し元のスタックトレース:');
     }
@@ -681,8 +694,8 @@ export default function SimpleVRMViewer({
       const easeProgress = 1 - Math.pow(1 - progress, 3);
       const currentValue = startValue + (targetValue - startValue) * easeProgress;
       
-      // 中間値がレベル4(0.4)付近になる場合を検出
-      if (Math.abs(currentValue - 0.4) < 0.05 && autoSimulation) {
+      // 中間値がレベル2(0.2)付近になる場合を検出
+      if (Math.abs(currentValue - 0.2) < 0.05 && autoSimulation) {
         // console.log(`⚠️ アニメーション中間値がレベル4付近: ${currentValue.toFixed(3)} (進捗:${(progress*100).toFixed(1)}%) start:${startValue.toFixed(3)} → target:${targetValue.toFixed(3)}`);
       }
       
@@ -923,8 +936,8 @@ export default function SimpleVRMViewer({
         simulationMonth === 0 && 
         vrmLoaded &&
         !isExplicitReset.current) {  // 明示的なリセット中は実行しない
-      // 初期状態では常にレベル4（fatness 0.4）を保持
-      animateToTargetFatness(0.4, `初期値レベル4を保持`);
+      // 初期状態では常にレベル2（fatness 0.2）を保持
+      animateToTargetFatness(0.2, `初期値レベル2を保持`);
     }
   }, [autoSimulation, simulationMonth, vrmLoaded]);
 
@@ -937,7 +950,7 @@ export default function SimpleVRMViewer({
       setCurrentStageIndex(0);
       setSimulationCompleted(false); // ★完了状態もリセット★
       if (animateToTargetFatnessRef.current) {
-        animateToTargetFatnessRef.current(0.4, reason);
+        animateToTargetFatnessRef.current(0.0, reason); // 0.2 → 0.0 に変更
       }
       
       // 少し遅れてフラグをクリア
@@ -964,13 +977,16 @@ export default function SimpleVRMViewer({
 
   // 外部からのシミュレーション停止制御
   useEffect(() => {
+    console.log('🛑 停止制御フラグ確認:', { stopSimulation, autoSimulation, simulationCompleted });
     if (stopSimulation) {
       if (autoSimulation) {
         // シミュレーション実行中の中止
+        console.log('⏸️ シミュレーション中止実行');
         setManualStop(true);
         setAutoSimulation(false);
       } else if (simulationCompleted) {
         // シミュレーション完了後のリセット
+        console.log('🔄 リセット実行');
         executeReset(`明示的リセット: 初期値復帰`, 200);
       }
     }
@@ -978,6 +994,7 @@ export default function SimpleVRMViewer({
 
   // シミュレーション状態変更を親コンポーネントに通知
   useEffect(() => {
+    console.log('📡 親コンポーネントに状態通知:', autoSimulation);
     if (onSimulationStateChange) {
       onSimulationStateChange(autoSimulation);
     }
@@ -985,6 +1002,7 @@ export default function SimpleVRMViewer({
 
   // シミュレーション完了状態変更を親コンポーネントに通知
   useEffect(() => {
+    console.log('✅ 完了状態通知:', simulationCompleted);
     if (onSimulationCompletedChange) {
       onSimulationCompletedChange(simulationCompleted);
     }
@@ -1060,6 +1078,35 @@ export default function SimpleVRMViewer({
     }
   }, [autoSimulation, vrmLoaded]);
 
+  // ===== 3秒間隔ログ機能 (削除予定) =====
+  useEffect(() => {
+    // 3秒ごとにシミュレーション状態をログ出力
+    const logInterval = setInterval(() => {
+      console.log('📊 [3秒間隔] シミュレーション状態:', {
+        autoSimulation,
+        simulationCompleted,
+        stopSimulation,
+        simulationMonth,
+        currentStageIndex,
+        currentFatnessValue: currentFatnessValue.toFixed(3),
+        displayBMI: getDisplayBMI().toFixed(1),
+        vrmLoaded,
+        vrmPath: avatarData.vrmPath,
+        vrmRef: vrmRef.current ? 'loaded' : 'null',
+        animationStatus
+      });
+    }, 3000);
+
+    statusLoggingIntervalRef.current = logInterval;
+
+    return () => {
+      if (statusLoggingIntervalRef.current) {
+        clearInterval(statusLoggingIntervalRef.current);
+      }
+    };
+  }, [autoSimulation, simulationCompleted, stopSimulation, simulationMonth, currentStageIndex, currentFatnessValue, vrmLoaded]);
+  // ===== 3秒間隔ログ機能終了 =====
+
   // コンポーネントアンマウント時のクリーンアップ
   useEffect(() => {
     return () => {
@@ -1068,6 +1115,10 @@ export default function SimpleVRMViewer({
       }
       if (simulationTimerRef.current) {
         clearInterval(simulationTimerRef.current);
+      }
+      // ===== 3秒間隔ログ機能のクリーンアップ (削除予定) =====
+      if (statusLoggingIntervalRef.current) {
+        clearInterval(statusLoggingIntervalRef.current);
       }
     };
   }, []);

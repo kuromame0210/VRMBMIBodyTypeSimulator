@@ -171,16 +171,19 @@ export default function BlendShapeControls({
 
   return (
     <div className="w-full space-y-4">
-      {/* ヘッダー */}
-      <div>
-        <h2 className="text-lg font-bold text-gray-800 mb-4">
-          BlendShape調整
-          <span className="text-sm font-normal text-gray-500 ml-2">
-            ({availableBlendShapes.filter(shape => !shape.startsWith('Fcl_')).length} 個利用可能)
-          </span>
-        </h2>
+      {/* ヘッダー - 非表示（親コンポーネントでタイトル表示） */}
+      {false && (
+        <div>
+          <h2 className="text-lg font-bold text-gray-800 mb-4">
+            BlendShape調整
+            <span className="text-sm font-normal text-gray-500 ml-2">
+              ({availableBlendShapes.filter(shape => !shape.startsWith('Fcl_')).length} 個利用可能)
+            </span>
+          </h2>
+        </div>
+      )}
         
-        {/* 検索バー - 非表示 */}
+      {/* 検索バー - 非表示 */}
         {false && (
           <div className="mb-4">
             <input
@@ -252,7 +255,6 @@ export default function BlendShapeControls({
             </div>
           </div>
         )}
-      </div>
 
       {/* カテゴリタブまたは検索結果 */}
       <div className="border rounded-lg overflow-hidden">

@@ -299,8 +299,8 @@ export default function VRMPreview({
           
           // console.log('✅ GLB->VRM変換完了、シーンに追加中...');
           vrmRef.current = vrm;
-          // アバター全体をもう少し上に移動
-          vrm.scene.position.y = 0.2;
+          // アバター全体の位置調整
+          vrm.scene.position.y = 0.1;
           scene.add(vrm.scene);
           
           // WSL準拠: 利用可能なBlendShapeを検出
@@ -331,8 +331,8 @@ export default function VRMPreview({
           if (vrmData) {
             // console.log('✅ VRMデータ発見、シーンに追加中...');
             vrmRef.current = vrmData;
-            // アバター全体をもう少し上に移動
-            vrmData.scene.position.y = 0.2;
+            // アバター全体の位置調整
+            vrmData.scene.position.y = 0.1;
             scene.add(vrmData.scene);
             VRMUtils.rotateVRM0(vrmData);
             
