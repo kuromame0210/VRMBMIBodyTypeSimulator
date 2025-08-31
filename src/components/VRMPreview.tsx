@@ -43,6 +43,27 @@ export default function VRMPreview({
   // WSL準拠: BlendShapeターゲット管理
   const [blendShapeTargets, setBlendShapeTargets] = useState<BlendShapeTarget[]>([]);
 
+  // リサイズハンドラー
+  useEffect(() => {
+    const handleResize = () => {
+      if (rendererRef.current && containerRef.current && cameraRef.current) {
+        const containerRect = containerRef.current.getBoundingClientRect();
+        const width = containerRect.width || 400;
+        const height = containerRect.height || 400;
+        
+        rendererRef.current.setSize(width, height);
+        cameraRef.current.aspect = width / height;
+        cameraRef.current.updateProjectionMatrix();
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    
+    return () => {
+      window.removeEventListener('resize', handleResize);
+    };
+  }, []);
+
   useEffect(() => {
     isMountedRef.current = true;
     // console.log('📋 VRMPreview マウント完了, 初期loading状態:', isLoading);
@@ -154,8 +175,8 @@ export default function VRMPreview({
 
         const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 1000); // FOVを60度に調整
         // 顔メインで首元まで表示
-        camera.position.set(0, 1.6, 0.65); // 少し近づけて胸部分を減らす
-        camera.lookAt(0, 1.62, 0); // 顔の中心を見る
+        camera.position.set(0, 1.65, 0.5); // 顔をもっとアップに（カメラを近づける）
+        camera.lookAt(0, 1.67, 0); // 顔の中心をもう少し上に
         cameraRef.current = camera;
         // console.log('📷 顔メイン表示カメラ設定:', { position: camera.position, lookAt: [0, 1.62, 0] });
 
@@ -174,7 +195,18 @@ export default function VRMPreview({
         });
         
         // WSL準拠: 顔専用表示サイズ
-        renderer.setSize(400, 400);
+        // コンテナのサイズに合わせる
+        const container = containerRef.current;
+        if (container) {
+          const containerRect = container.getBoundingClientRect();
+          const width = containerRect.width || 400;
+          const height = containerRect.height || 400;
+          renderer.setSize(width, height);
+          camera.aspect = width / height;
+          camera.updateProjectionMatrix();
+        } else {
+          renderer.setSize(400, 400);
+        }
         renderer.shadowMap.enabled = true;
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         rendererRef.current = renderer;
@@ -184,10 +216,10 @@ export default function VRMPreview({
         }
 
         // WSL準拠: 顔専用ライティング設定
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.7); // 少し明るく
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.8); // さらに明るく
         scene.add(ambientLight);
 
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.9); // さらに明るく
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0); // さらに明るく
         directionalLight.position.set(1, 1, 1); // 顔に近い位置
         directionalLight.castShadow = true;
         scene.add(directionalLight);
@@ -267,6 +299,8 @@ export default function VRMPreview({
           
           // console.log('✅ GLB->VRM変換完了、シーンに追加中...');
           vrmRef.current = vrm;
+          // アバター全体をもう少し上に移動
+          vrm.scene.position.y = 0.2;
           scene.add(vrm.scene);
           
           // WSL準拠: 利用可能なBlendShapeを検出
@@ -297,6 +331,8 @@ export default function VRMPreview({
           if (vrmData) {
             // console.log('✅ VRMデータ発見、シーンに追加中...');
             vrmRef.current = vrmData;
+            // アバター全体をもう少し上に移動
+            vrmData.scene.position.y = 0.2;
             scene.add(vrmData.scene);
             VRMUtils.rotateVRM0(vrmData);
             
