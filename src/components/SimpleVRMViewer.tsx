@@ -596,7 +596,7 @@ export default function SimpleVRMViewer({
 
   }, [avatarData.vrmPath]);
 
-  // fatness値更新用の共通関数（デバッグ強化版）
+  // fatness値更新用の共通関数（デバッグ強化版 + お腹周りスケール調整）
   const updateFatnessBlendShape = (fatnessValue: number, source: string) => {
     if (vrmRef.current) {
       const scene = vrmRef.current.scene || vrmRef.current.userData?.scene || vrmRef.current;
@@ -629,6 +629,39 @@ export default function SimpleVRMViewer({
           }
         });
       }
+      
+      // ===== お腹周りスケール調整機能 (削除予定) =====
+      // fatness値が低い時（痩せる時）にお腹周りを追加で細くする
+      const vrm = vrmRef.current.userData?.vrm || vrmRef.current;
+      if (vrm && vrm.humanoid) {
+        try {
+          // VRMのhumanoidボーンを取得
+          const spine = vrm.humanoid.getBoneNode('spine');
+          const chest = vrm.humanoid.getBoneNode('chest'); 
+          const hips = vrm.humanoid.getBoneNode('hips');
+          
+          // fatness値に基づいてお腹周りのスケールを計算
+          // fatness 0.0 → より細く、fatness 1.0 → 通常
+          const bellyScaleX = Math.max(0.7, 1.0 - (0.2 - fatnessValue) * 1.5); // 最小0.7倍
+          const bellyScaleZ = Math.max(0.8, 1.0 - (0.2 - fatnessValue) * 1.0); // 最小0.8倍
+          
+          console.log(`🏃 [DEBUG] お腹スケール調整: fatness=${fatnessValue.toFixed(3)} → scaleX=${bellyScaleX.toFixed(3)}, scaleZ=${bellyScaleZ.toFixed(3)}`);
+          
+          // 各ボーンにスケール適用
+          if (spine) {
+            spine.scale.setX(bellyScaleX);
+            spine.scale.setZ(bellyScaleZ);
+          }
+          if (hips) {
+            hips.scale.setX(bellyScaleX);
+            hips.scale.setZ(bellyScaleZ);
+          }
+          
+        } catch (error) {
+          console.warn('❌ [DEBUG] お腹スケール調整エラー:', error);
+        }
+      }
+      // ===== お腹周りスケール調整機能終了 =====
     }
   };
 

@@ -62,7 +62,9 @@ export default function BMICalculator({
   const handleFuturePrediction = () => {
     try {
       const excessCaloriesValue = getExcessCaloriesValue(userData.excessCalories);
+      console.log('🔮 [DEBUG] 未来予測実行:', { excessCaloriesValue, userData }); // デバッグログ追加
       const predictions = calculateAllFutureBMI(userData.height, userData.weight, excessCaloriesValue);
+      console.log('🔮 [DEBUG] 予測結果:', predictions); // デバッグログ追加
       
       setFuturePredictions(predictions);
       if (onFutureBMIChange) {
@@ -74,7 +76,7 @@ export default function BMICalculator({
         onAnimationStateChange(true);
       }
     } catch (error) {
-      // console.error('未来予測計算エラー:', error);
+      console.error('❌ [DEBUG] 未来予測計算エラー:', error); // デバッグログ追加
     }
   };
 
@@ -93,12 +95,27 @@ export default function BMICalculator({
     }
   };
 
-  // 初期計算とユーザーデータ変更時の自動計算
+  // 初期計算とユーザーデータ変更時の自動計算 + 未来予測
   useEffect(() => {
     if (userData.height > 0 && userData.weight > 0) {
       handleCalculate();
+      
+      // 未来予測も自動実行
+      try {
+        const excessCaloriesValue = getExcessCaloriesValue(userData.excessCalories);
+        console.log('🔮 [DEBUG] 自動未来予測実行:', { excessCaloriesValue, userData });
+        const predictions = calculateAllFutureBMI(userData.height, userData.weight, excessCaloriesValue);
+        console.log('🔮 [DEBUG] 自動予測結果:', predictions);
+        
+        setFuturePredictions(predictions);
+        if (onFutureBMIChange) {
+          onFutureBMIChange(predictions);
+        }
+      } catch (error) {
+        console.error('❌ [DEBUG] 自動未来予測エラー:', error);
+      }
     }
-  }, [userData.height, userData.weight, userData.age, userData.gender]);
+  }, [userData.height, userData.weight, userData.age, userData.gender, userData.excessCalories, onFutureBMIChange]);
 
   return (
     <div className="w-full max-w-md p-6 bg-white rounded-lg shadow-lg">
@@ -263,25 +280,29 @@ export default function BMICalculator({
           ? '⏹️ 中止する' 
           : simulationCompleted 
           ? '🔄 リセットする' 
-          : '🔮 未来を予測する'
+          : '未来を予測する'
         }
       </button>
 
+      {/* デバッグログ追加 */}
+      {console.log('🔮 [DEBUG] 表示判定:', { length: futurePredictions.length, predictions: futurePredictions })}
       {futurePredictions.length > 0 && (
-        <div className="space-y-3">
+        <div className="space-y-3 mt-4">
           {futurePredictions.map((prediction, index) => (
-            <div key={index} className="flex items-center gap-4 text-sm">
-              <span className="w-16 text-gray-600">{getPeriodLabel(prediction.period)}</span>
-              <div className="flex gap-2">
-                <span className="text-gray-600">BMI</span>
-                <span className="bg-gray-100 px-2 py-1 rounded text-xs">
+            <div key={index} className="flex items-center justify-between gap-4 text-base">
+              <span className="w-16 text-gray-700 font-medium text-base">{getPeriodLabel(prediction.period)}</span>
+              
+              <div className="flex items-center gap-2">
+                <span className="text-gray-700 text-base">BMI</span>
+                <span className="bg-gray-100 px-3 py-2 text-base font-medium">
                   {prediction.bmi.toFixed(1)}
                 </span>
               </div>
-              <div className="flex gap-2">
-                <span className="text-gray-600">余剰kcal</span>
-                <span className="bg-gray-100 px-2 py-1 rounded text-xs">
-                  {(getExcessCaloriesValue(userData.excessCalories) * prediction.period).toLocaleString()}kcal
+              
+              <div className="flex items-center gap-2">
+                <span className="text-gray-700 text-base">余剰kcal</span>
+                <span className="bg-gray-100 px-3 py-2 text-base font-medium">
+                  {(getExcessCaloriesValue(userData.excessCalories) * prediction.period) > 0 ? '+' : ''}{(getExcessCaloriesValue(userData.excessCalories) * prediction.period).toLocaleString()}
                 </span>
               </div>
             </div>
