@@ -128,8 +128,13 @@ function HomeContent() {
   // });
 
   // SSR時またはクライアント初期化中の処理
-  if (!isClient || isInitializing || !selectedAvatar) {
+  if (!isClient || isInitializing) {
     return <LoadingSpinner message="アバター設定を確認中..." />;
+  }
+
+  // アバターが未選択の場合（リダイレクト処理中）
+  if (!selectedAvatar) {
+    return <LoadingSpinner message="アバター選択画面に移動中..." />;
   }
 
   return (

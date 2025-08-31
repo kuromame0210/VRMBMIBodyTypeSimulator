@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useAvatarState } from '@/hooks/useAvatarState';
+import { useRouter } from 'next/navigation';
 import { AvatarData, getAvatarsWithFatness, getAvatarsWithFatnessByGender } from '@/utils/avatarConfig';
 import ThumbnailManager from '@/components/ThumbnailManager';
 import PageWrapper from '@/components/PageWrapper';
@@ -10,6 +11,7 @@ import AvatarCard from '@/components/AvatarCard';
 import GenderFilter from '@/components/GenderFilter';
 
 function AvatarSelectContent() {
+  const router = useRouter();
   const { 
     isClient, 
     isInitializing, 
@@ -37,9 +39,9 @@ function AvatarSelectContent() {
   //   totalAvatars: AVATAR_LIST.length
   // });
 
-  // 初回のみAVATAR_LISTの内容を確認
-  if (AVATAR_LIST.length > 0) {
-    // console.log('📋 利用可能なアバター:', AVATAR_LIST.map(a => ({ id: a.id, name: a.name, gender: a.gender })));
+  // 初回のみアバターリストの内容を確認
+  if (fatnessAvatars.length > 0) {
+    // console.log('📋 利用可能なアバター:', fatnessAvatars.map(a => ({ id: a.id, name: a.name, gender: a.gender })));
   }
 
   const handleAvatarSelect = (avatar: AvatarData) => {
@@ -104,7 +106,7 @@ function AvatarSelectContent() {
               />
 
           {/* 選択されたアバターの詳細 */}
-          {selectedAvatar && (
+          {selectedAvatar ? (
             <div className="bg-blue-50 rounded-lg p-6 mb-6">
               <h2 className="text-xl font-bold text-gray-800 mb-4">選択中のアバター</h2>
               <div className="flex items-center space-x-6">
@@ -133,10 +135,17 @@ function AvatarSelectContent() {
                     onClick={handleConfirm}
                     className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
                   >
-                    このアバターで体型シミュレーションを開始
+                    このアバターで体系シミュレーションを開始
                   </button>
                 </div>
               </div>
+            </div>
+          ) : (
+            <div className="bg-yellow-50 rounded-lg p-6 mb-6 border border-yellow-200">
+              <h2 className="text-lg font-semibold text-yellow-800 mb-2">💡 アバターを選択してください</h2>
+              <p className="text-yellow-700 text-sm">
+                下のアバターリストからお好みのアバターを選択すると、詳細情報と開始ボタンがここに表示されます。
+              </p>
             </div>
           )}
 
@@ -160,14 +169,22 @@ function AvatarSelectContent() {
                 >
                   キャンセル
                 </button>
-                {selectedAvatar && (
-                  <button
-                    onClick={handleConfirm}
-                    className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
-                  >
-                    このアバターを選択
-                  </button>
-                )}
+                <button
+                  onClick={() => {
+                    if (!selectedAvatar) {
+                      alert('まずアバターを選択してください。');
+                      return;
+                    }
+                    router.push('/face-analysis');
+                  }}
+                  className={`px-6 py-3 text-white rounded-lg transition-colors font-medium ${
+                    selectedAvatar 
+                      ? 'bg-blue-600 hover:bg-blue-700 cursor-pointer' 
+                      : 'bg-gray-400 cursor-not-allowed'
+                  }`}
+                >
+                  📸 【写真からアバターを作る】
+                </button>
               </div>
             </>
           )}

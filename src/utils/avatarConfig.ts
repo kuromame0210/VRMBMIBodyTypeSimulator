@@ -20,7 +20,7 @@ export const AVATAR_LIST: AvatarData[] = [
     name: '女性A',
     gender: 'female',
     vrmPath: '/vrm-models/f_0.glb',
-    thumbnailPath: '/vrm-models/thumbnails/f_0.png',
+    thumbnailPath: '/vrm-models/thumbnails/female_01.png',
     description: '女性アバターA（顔特徴・アニメーション対応）',
     blendShapeNames: {
       fatness: 'fatness'
@@ -31,7 +31,7 @@ export const AVATAR_LIST: AvatarData[] = [
     name: '女性B',
     gender: 'female',
     vrmPath: '/vrm-models/f_1.glb',
-    thumbnailPath: '/vrm-models/thumbnails/f_1.png',
+    thumbnailPath: '/vrm-models/thumbnails/female_02.png',
     description: '女性アバターB（顔特徴・アニメーション対応）',
     blendShapeNames: {
       fatness: 'fatness'
@@ -42,7 +42,7 @@ export const AVATAR_LIST: AvatarData[] = [
     name: '女性C',
     gender: 'female',
     vrmPath: '/vrm-models/f_2.glb',
-    thumbnailPath: '/vrm-models/thumbnails/f_2.png',
+    thumbnailPath: '/vrm-models/thumbnails/female_01.png',
     description: '女性アバターC（顔特徴・アニメーション対応）',
     blendShapeNames: {
       fatness: 'fatness'
@@ -54,7 +54,7 @@ export const AVATAR_LIST: AvatarData[] = [
     name: '男性A',
     gender: 'male',
     vrmPath: '/vrm-models/m_0.glb',
-    thumbnailPath: '/vrm-models/thumbnails/m_0.png',
+    thumbnailPath: '/vrm-models/thumbnails/male_01.png',
     description: '男性アバターA（顔特徴・アニメーション対応）',
     blendShapeNames: {
       fatness: 'fatness'
@@ -65,7 +65,7 @@ export const AVATAR_LIST: AvatarData[] = [
     name: '男性B',
     gender: 'male',
     vrmPath: '/vrm-models/m_1.glb',
-    thumbnailPath: '/vrm-models/thumbnails/m_1.png',
+    thumbnailPath: '/vrm-models/thumbnails/male_02.png',
     description: '男性アバターB（顔特徴・アニメーション対応）',
     blendShapeNames: {
       fatness: 'fatness'
@@ -76,7 +76,7 @@ export const AVATAR_LIST: AvatarData[] = [
     name: '男性C',
     gender: 'male',
     vrmPath: '/vrm-models/m_2.glb',
-    thumbnailPath: '/vrm-models/thumbnails/m_2.png',
+    thumbnailPath: '/vrm-models/thumbnails/male_03.png',
     description: '男性アバターC（顔特徴・アニメーション対応）',
     blendShapeNames: {
       fatness: 'fatness'

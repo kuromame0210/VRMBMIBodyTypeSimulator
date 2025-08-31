@@ -60,9 +60,9 @@ export function useAvatarState() {
         return;
       }
 
-      // 初回アクセス - 顔解析画面にリダイレクト
+      // 初回アクセス - avatar-selectページにリダイレクト
       setIsInitializing(false);
-      router.push('/face-analysis');
+      router.push('/avatar-select');
     };
 
     initializeAvatarSelection();

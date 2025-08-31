@@ -180,40 +180,47 @@ export default function BlendShapeControls({
           </span>
         </h2>
         
-        {/* 検索バー */}
-        <div className="mb-4">
-          <input
-            type="text"
-            placeholder="ブレンドシェイプを検索..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-          />
-          {searchTerm && (
-            <div className="text-xs text-gray-500 mt-1">
-              {getAllFilteredShapes().length} 件見つかりました
-            </div>
-          )}
-        </div>
+        {/* 検索バー - 非表示 */}
+        {false && (
+          <div className="mb-4">
+            <input
+              type="text"
+              placeholder="ブレンドシェイプを検索..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            />
+            {searchTerm && (
+              <div className="text-xs text-gray-500 mt-1">
+                {getAllFilteredShapes().length} 件見つかりました
+              </div>
+            )}
+          </div>
+        )}
         
-        {/* アクションボタン */}
-        <div className="flex flex-wrap gap-2 mb-4">
-          <button
-            onClick={store.resetToDefault}
-            className="px-3 py-1 bg-gray-500 text-white rounded hover:bg-gray-600 text-sm"
-          >
-            🔄 リセット
-          </button>
-          <button
-            onClick={() => setShowImportExport(!showImportExport)}
-            className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
-          >
-            📁 インポート/エクスポート
-          </button>
-        </div>
+        {/* アクションボタン - 非表示 */}
+        {false && (
+          <div className="flex flex-wrap gap-2 mb-4">
+            <button
+              onClick={store.resetToDefault}
+              className="px-3 py-1 bg-gray-500 text-white rounded hover:bg-gray-600 text-sm"
+            >
+              🔄 リセット
+            </button>
+            {/* インポート/エクスポートボタン - 非表示 */}
+            {false && (
+              <button
+                onClick={() => setShowImportExport(!showImportExport)}
+                className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
+              >
+                📁 インポート/エクスポート
+              </button>
+            )}
+          </div>
+        )}
 
-        {/* インポート/エクスポートパネル */}
-        {showImportExport && (
+        {/* インポート/エクスポートパネル - 非表示 */}
+        {false && showImportExport && (
           <div className="bg-gray-50 p-4 rounded-lg mb-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
@@ -338,67 +345,69 @@ export default function BlendShapeControls({
         </div>
       </div>
 
-      {/* プリセット管理 */}
-      <div className="border rounded-lg p-4">
-        <h3 className="text-sm font-medium text-gray-800 mb-4">プリセット管理</h3>
-        
-        {/* 新規プリセット保存 */}
-        <div className="flex gap-2 mb-4">
-          <input
-            type="text"
-            value={newPresetName}
-            onChange={(e) => setNewPresetName(e.target.value)}
-            placeholder="プリセット名を入力"
-            className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm"
-          />
-          <button
-            onClick={handleSavePreset}
-            disabled={!newPresetName.trim()}
-            className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 disabled:bg-gray-300 text-sm"
-          >
-            💾 保存
-          </button>
-        </div>
+      {/* プリセット管理 - 非表示 */}
+      {false && (
+        <div className="border rounded-lg p-4">
+          <h3 className="text-sm font-medium text-gray-800 mb-4">プリセット管理</h3>
+          
+          {/* 新規プリセット保存 */}
+          <div className="flex gap-2 mb-4">
+            <input
+              type="text"
+              value={newPresetName}
+              onChange={(e) => setNewPresetName(e.target.value)}
+              placeholder="プリセット名を入力"
+              className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm"
+            />
+            <button
+              onClick={handleSavePreset}
+              disabled={!newPresetName.trim()}
+              className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 disabled:bg-gray-300 text-sm"
+            >
+              💾 保存
+            </button>
+          </div>
 
-        {/* 保存済みプリセット一覧 */}
-        <div className="space-y-2">
-          {store.savedPresets.length === 0 ? (
-            <p className="text-gray-500 text-sm">保存されたプリセットはありません</p>
-          ) : (
-            store.savedPresets.map(preset => (
-              <div
-                key={preset.id}
-                className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
-              >
-                <div>
-                  <div className="font-medium text-gray-800 text-sm">{preset.name}</div>
-                  <div className="text-xs text-gray-500">
-                    {preset.createdAt.toLocaleDateString()}
+          {/* 保存済みプリセット一覧 */}
+          <div className="space-y-2">
+            {store.savedPresets.length === 0 ? (
+              <p className="text-gray-500 text-sm">保存されたプリセットはありません</p>
+            ) : (
+              store.savedPresets.map(preset => (
+                <div
+                  key={preset.id}
+                  className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                >
+                  <div>
+                    <div className="font-medium text-gray-800 text-sm">{preset.name}</div>
+                    <div className="text-xs text-gray-500">
+                      {preset.createdAt.toLocaleDateString()}
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => store.loadPreset(preset.id)}
+                      className="px-3 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600"
+                    >
+                      🔄 読み込み
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (confirm('このプリセットを削除しますか？')) {
+                          store.deletePreset(preset.id);
+                        }
+                      }}
+                      className="px-3 py-1 bg-red-500 text-white rounded text-xs hover:bg-red-600"
+                    >
+                      🗑️ 削除
+                    </button>
                   </div>
                 </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => store.loadPreset(preset.id)}
-                    className="px-3 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600"
-                  >
-                    🔄 読み込み
-                  </button>
-                  <button
-                    onClick={() => {
-                      if (confirm('このプリセットを削除しますか？')) {
-                        store.deletePreset(preset.id);
-                      }
-                    }}
-                    className="px-3 py-1 bg-red-500 text-white rounded text-xs hover:bg-red-600"
-                  >
-                    🗑️ 削除
-                  </button>
-                </div>
-              </div>
-            ))
-          )}
+              ))
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       <style jsx>{`
         .slider::-webkit-slider-thumb {
