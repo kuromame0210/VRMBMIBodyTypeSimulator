@@ -18,7 +18,11 @@
       "Bash(git push:*)",
       "Bash(mv:*)",
       "Bash(npx tsc:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(gh pr merge:*)",
+      "Bash(gh pr checkout:*)",
+      "Bash(git fetch:*)",
+      "Bash(git merge:*)"
     ],
     "deny": []
   }
