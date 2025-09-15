@@ -1,0 +1,142 @@
+import { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { AvatarData, getAvatarById, getDefaultAvatar } from '@/utils/avatarConfig';
+import { 
+  saveSelectedAvatar, 
+  getSelectedAvatar, 
+  hasFaceFeatures,
+  getFaceFeatures,
+  SavedFaceFeatures 
+} from '@/utils/localStorage';
+
+export function useAvatarState() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const avatarId = searchParams.get('avatar');
+  
+  const [isClient, setIsClient] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(true);
+  const [selectedAvatar, setSelectedAvatar] = useState<AvatarData | null>(null);
+  const [currentFaceFeatures, setCurrentFaceFeatures] = useState<SavedFaceFeatures | null>(null);
+
+  // クライアントサイド確認
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
+  // アバター状態の初期化
+  useEffect(() => {
+    if (!isClient) return;
+    
+    const initializeAvatarSelection = () => {
+      // URLパラメータでアバターが指定されている場合
+      if (avatarId) {
+        const avatar = getAvatarById(avatarId);
+        if (avatar) {
+          setSelectedAvatar(avatar);
+          saveSelectedAvatar(avatar.id);
+          setIsInitializing(false);
+          return;
+        }
+      }
+
+      // ローカルストレージから既存の選択をチェック
+      const savedAvatarId = getSelectedAvatar();
+      if (savedAvatarId) {
+        const savedAvatar = getAvatarById(savedAvatarId);
+        if (savedAvatar) {
+          setSelectedAvatar(savedAvatar);
+          setIsInitializing(false);
+          return;
+        }
+      }
+
+      // 顔特徴データがある場合はデフォルトアバターを設定
+      if (hasFaceFeatures()) {
+        const defaultAvatar = getDefaultAvatar();
+        setSelectedAvatar(defaultAvatar);
+        saveSelectedAvatar(defaultAvatar.id);
+        setIsInitializing(false);
+        return;
+      }
+
+      // 初回アクセス - avatar-selectページにリダイレクト
+      setIsInitializing(false);
+      router.push('/avatar-select');
+    };
+
+    initializeAvatarSelection();
+  }, [avatarId, router, isClient]);
+
+  // 顔特徴データの読み込み
+  useEffect(() => {
+    if (!isClient) return;
+    
+    const loadFaceFeatures = () => {
+      const faceData = getFaceFeatures();
+      setCurrentFaceFeatures(faceData);
+    };
+    
+    // 初回読み込み
+    loadFaceFeatures();
+    
+    // ページのvisibilityが変わった時（他のページから戻ってきた時）に再読み込み
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        loadFaceFeatures();
+      }
+    };
+    
+    // ページにフォーカスが戻った時に再読み込み
+    const handleFocus = () => {
+      loadFaceFeatures();
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
+    
+    // クリーンアップ
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [isClient]);
+
+  const updateSelectedAvatar = (avatar: AvatarData) => {
+    setSelectedAvatar(avatar);
+    saveSelectedAvatar(avatar.id);
+  };
+
+  // 表情データを手動で再読み込みする関数
+  const refreshFaceFeatures = () => {
+    const faceData = getFaceFeatures();
+    setCurrentFaceFeatures(faceData);
+  };
+
+  const navigateToFaceAnalysis = () => {
+    router.push('/face-analysis');
+  };
+
+  const navigateToAvatarSelect = () => {
+    router.push(`/avatar-select?current=${selectedAvatar?.id || ''}`);
+  };
+
+  const navigateToHome = (avatarId?: string) => {
+    // ホームに戻る時に表情データを再読み込み
+    refreshFaceFeatures();
+    const url = avatarId ? `/?avatar=${avatarId}` : '/';
+    router.push(url);
+  };
+
+  return {
+    isClient,
+    isInitializing,
+    selectedAvatar,
+    currentFaceFeatures,
+    updateSelectedAvatar,
+    refreshFaceFeatures,
+    navigateToFaceAnalysis,
+    navigateToAvatarSelect,
+    navigateToHome
+  };
+}
