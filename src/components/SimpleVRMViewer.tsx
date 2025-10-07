@@ -23,6 +23,7 @@ import {
 interface SimpleVRMViewerProps {
   avatarData: AvatarData;
   currentBMI: number;
+  muscleMass: number; // 入力された筋肉量
   dailySurplusCalories?: number;
   age?: number;
   height?: number;
@@ -39,6 +40,7 @@ interface SimpleVRMViewerProps {
 export default function SimpleVRMViewer({ 
   avatarData, 
   currentBMI, 
+  muscleMass,
   dailySurplusCalories = 0, 
   age = 25, 
   height = 170,
@@ -1281,8 +1283,8 @@ export default function SimpleVRMViewer({
       <div className="absolute top-4 left-4 bg-black bg-opacity-50 text-white p-2 rounded text-xs max-w-xs">
         <p>年齢: {getDisplayAge()}歳 {autoSimulation && `(${simulationMonth === 1 ? '1ヶ月後' : simulationMonth === 12 ? '1年後' : simulationMonth === 36 ? '3年後' : simulationMonth === 60 ? '5年後' : simulationMonth === 120 ? '10年後' : '現在'})`}</p>
         <p>BMI: {getDisplayBMI().toFixed(1)} ({getBMICategory(getDisplayBMI())})</p>
-        <p>筋量: {getCurrentBodyComposition().muscleMass.toFixed(1)}kg</p>
-        <p>脂肪量: {getCurrentBodyComposition().fatMass.toFixed(1)}kg</p>
+        <p>筋量: {muscleMass.toFixed(1)}kg</p>
+        {/* <p>脂肪量: {getCurrentBodyComposition().fatMass.toFixed(1)}kg</p> */}
         <p>Fatness: {currentFatnessValue.toFixed(3)} (Lv.{Math.round(currentFatnessValue * 10)})</p>
         {autoSimulation && (
           <p style={{fontSize: '10px', color: '#ffff99'}}>

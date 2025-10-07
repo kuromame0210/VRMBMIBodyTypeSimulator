@@ -5,6 +5,7 @@ import { calculateBMI, calculateBMR, calculateAllFutureBMI, getPeriodLabel, getE
 
 
 interface BMICalculatorProps {
+  currentBMI: number; // 外部で計算されたBMI値
   onBMIChange: (bmi: number) => void;
   onFutureBMIChange: (futureBMI: Array<{ period: number; weight: number; bmi: number }>) => void;
   onUserDataChange: (userData: {
@@ -24,6 +25,7 @@ interface BMICalculatorProps {
 }
 
 export default function BMICalculator({ 
+  currentBMI,
   onBMIChange, 
   onFutureBMIChange, 
   onUserDataChange, 
@@ -35,15 +37,15 @@ export default function BMICalculator({
 }: BMICalculatorProps) {
   const [userData, setUserData] = useState({
     height: 170,
-    weight: 60,
-    muscleMass: 45,
+    weight: 65, // 標準的な30代男性に近い値に調整
+    muscleMass: 23.5, // 標準的な30代男性の骨格筋量を参考
     age: 30,
     gender: 'male' as 'male' | 'female',
     excessCalories: '普通' as '少ない' | '普通' | '多い',
     excessCaloriesValue: 0
   });
 
-  const [currentBMI, setCurrentBMI] = useState(0);
+  // currentBMIはpropsから受け取るため、ローカル状態は不要
   const [currentBMR, setCurrentBMR] = useState(0);
   const [currentMMH2, setCurrentMMH2] = useState(0);
   const [futurePredictions, setFuturePredictions] = useState<Array<{ period: number; weight: number; bmi: number }>>([]);
@@ -54,25 +56,24 @@ export default function BMICalculator({
 
   const handleCalculate = () => {
     try {
-      // 指定された計算式を使用
-      const bmi = userData.weight / userData.height / userData.height * 10000;
-      const mmh2 = userData.muscleMass / userData.height / userData.height * 10000;
+      // BMI計算は外部で実行済み、currentBMIを使用
+      const mmh2 = userData.muscleMass / userData.height / userData.height / 10000;
       
       // 基礎代謝計算（指定された係数）
       const bmr = userData.gender === 'male' 
         ? 13.4 * userData.weight + 4.8 * userData.height - 5.7 * userData.age + 88
         : 9.2 * userData.weight + 3.1 * userData.height - 4.3 * userData.age + 448;
       
-      setCurrentBMI(bmi);
       setCurrentBMR(bmr);
       setCurrentMMH2(mmh2);
       setShowCalculatedValues(true);
       
+      // BMI値は既に外部で計算済みなので、そのまま通知
       if (onBMIChange) {
-        onBMIChange(bmi);
+        onBMIChange(currentBMI);
       }
     } catch {
-      // BMI計算エラーは無視
+      // 計算エラーは無視
     }
   };
 
@@ -309,7 +310,7 @@ export default function BMICalculator({
             handleFuturePrediction();
             
             // 疾患リスク計算（簡易版）
-            const bmi = userData.weight / userData.height / userData.height * 10000;
+            const bmi = currentBMI; // propsから受け取ったBMI値を使用
             let risk = 0;
             if (bmi < 18.5) {
               risk = Math.floor(Math.random() * 15) + 5; // 5-20%

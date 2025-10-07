@@ -36,8 +36,8 @@ function HomeContent() {
   } = useAvatarState();
   const [userData, setUserData] = useState({
     height: 170,
-    weight: 60,
-    muscleMass: 45,
+    weight: 65, // 標準的な30代男性に近い値に調整
+    muscleMass: 23.5, // 標準的な30代男性の骨格筋量を参考
     age: 30,
     gender: 'male' as 'male' | 'female',
     excessCalories: '普通'
@@ -148,6 +148,7 @@ function HomeContent() {
           <div className="flex justify-center items-start">
             <div className="w-full max-w-md">
               <BMICalculator 
+                currentBMI={currentBMI}
                 onBMIChange={handleBMIChange}
                 onFutureBMIChange={handleFutureBMIChange}
                 onUserDataChange={handleUserDataChange}
@@ -167,6 +168,7 @@ function HomeContent() {
               <ErrorBoundary>
                 <SimpleVRMViewer 
                   currentBMI={currentBMI}
+                  muscleMass={userData.muscleMass}
                   avatarData={selectedAvatar}
                   age={userData.age}
                   height={userData.height}
