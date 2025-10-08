@@ -28,6 +28,7 @@ interface SimpleVRMViewerProps {
   age?: number;
   height?: number;
   faceFeatures?: SavedFaceFeatures;
+  futureBMIPredictions?: Array<{ period: number; weight: number; bmi: number }>;
   onSimulationStateChange?: (isRunning: boolean) => void;
   onSimulationCompletedChange?: (completed: boolean) => void;
   startSimulation?: boolean;
@@ -45,6 +46,7 @@ export default function SimpleVRMViewer({
   age = 25, 
   height = 170,
   faceFeatures,
+  futureBMIPredictions = [],
   onSimulationStateChange,
   onSimulationCompletedChange,
   startSimulation = false,
@@ -1010,58 +1012,38 @@ export default function SimpleVRMViewer({
 
   // シミュレーション用のタイムラインを指定された値に基づいて生成
   const generateSimulationTimeline = () => {
-    // 提供された仕様に基づく固定値
-    if (dailySurplusCalories === -100) {
-      // 「少ない」の場合：Level 5からLevel 0まで減少
-      const calculateBMIReduction = (months: number) => {
-        // Level 5 (BMI 20.8) からLevel 0 (BMI 15未満) まで減少
-        const targetMinBMI = 14.5; // Level 0に到達する最終BMI
-        const maxReduction = currentBMI - targetMinBMI; // 約6.3BMI減少
-        const normalizedTime = months / 120; // 0-1に正規化
-        // 対数関数でスムーズな減少カーブ
-        return maxReduction * Math.log(normalizedTime * 19 + 1) / Math.log(20);
-      };
-      
-      return [
-        { months: 0, bmi: currentBMI, totalCalories: 0, description: '現在' },
-        { months: 1, bmi: currentBMI - calculateBMIReduction(1), totalCalories: -3000, description: '1ヶ月後' },
-        { months: 12, bmi: currentBMI - calculateBMIReduction(12), totalCalories: -36500, description: '1年後' },
-        { months: 36, bmi: currentBMI - calculateBMIReduction(36), totalCalories: -109500, description: '3年後' },
-        { months: 60, bmi: currentBMI - calculateBMIReduction(60), totalCalories: -182500, description: '5年後' },
-        { months: 120, bmi: currentBMI - calculateBMIReduction(120), totalCalories: -365000, description: '10年後' }
-      ];
-    } else if (dailySurplusCalories === 0) {
-      // 「普通」の場合：BMI維持（わずかな変動のみ）
-      return [
-        { months: 0, bmi: currentBMI, totalCalories: 0, description: '現在' },
-        { months: 1, bmi: currentBMI, totalCalories: 0, description: '1ヶ月後' },
-        { months: 12, bmi: currentBMI + 0.1, totalCalories: 1800, description: '1年後' },
-        { months: 36, bmi: currentBMI + 0.3, totalCalories: 5400, description: '3年後' },
-        { months: 60, bmi: currentBMI + 0.5, totalCalories: 9000, description: '5年後' },
-        { months: 120, bmi: currentBMI + 1.0, totalCalories: 18000, description: '10年後' }
-      ];
-    } else if (dailySurplusCalories === 100) {
-      // 「多い」の場合：指数関数的増加（初期は緩やか、後期は急激）
-      const calculateBMIIncrease = (months: number) => {
-        // 指数関数による自然な増加曲線 y = a * (e^(bx) - 1)
-        const maxIncrease = 15; // 最大15BMI増加
-        const normalizedTime = months / 120; // 0-1に正規化
-        const exponentialFactor = 1.5; // 指数の強さ
-        return maxIncrease * (Math.exp(normalizedTime * exponentialFactor) - 1) / (Math.exp(exponentialFactor) - 1);
-      };
-      
-      return [
-        { months: 0, bmi: currentBMI, totalCalories: 0, description: '現在' },
-        { months: 1, bmi: Math.min(50, currentBMI + calculateBMIIncrease(1)), totalCalories: 3000, description: '1ヶ月後' },
-        { months: 12, bmi: Math.min(50, currentBMI + calculateBMIIncrease(12)), totalCalories: 36500, description: '1年後' },
-        { months: 36, bmi: Math.min(50, currentBMI + calculateBMIIncrease(36)), totalCalories: 109500, description: '3年後' },
-        { months: 60, bmi: Math.min(50, currentBMI + calculateBMIIncrease(60)), totalCalories: 182500, description: '5年後' },
-        { months: 120, bmi: Math.min(50, currentBMI + calculateBMIIncrease(120)), totalCalories: 365000, description: '10年後' }
-      ];
+    // 科学的計算結果を使用 (7200kcal = 1kg)
+    if (futureBMIPredictions.length === 0) {
+      return [{ months: 0, bmi: currentBMI, totalCalories: 0, description: '現在' }];
     }
     
-    // フォールバック
-    return [{ months: 0, bmi: currentBMI, totalCalories: 0, description: '現在' }];
+    // BMICalculatorの予測結果をタイムライン形式に変換
+    const timeline = [{ months: 0, bmi: currentBMI, totalCalories: 0, description: '現在' }];
+    
+    futureBMIPredictions.forEach(prediction => {
+      const months = prediction.period === 30 ? 1 :
+                    prediction.period === 365 ? 12 :
+                    prediction.period === 1095 ? 36 :
+                    prediction.period === 1825 ? 60 :
+                    prediction.period === 3650 ? 120 : 0;
+      
+      const description = prediction.period === 30 ? '1ヶ月後' :
+                         prediction.period === 365 ? '1年後' :
+                         prediction.period === 1095 ? '3年後' :
+                         prediction.period === 1825 ? '5年後' :
+                         prediction.period === 3650 ? '10年後' : '不明';
+      
+      if (months > 0) {
+        timeline.push({
+          months,
+          bmi: prediction.bmi,
+          totalCalories: dailySurplusCalories * prediction.period,
+          description
+        });
+      }
+    });
+    
+    return timeline;
   };
   
   const simulationTimeline = generateSimulationTimeline();

@@ -42,6 +42,7 @@ function HomeContent() {
     gender: 'male' as 'male' | 'female',
     excessCalories: '普通'
   });
+  const [futureBMIPredictions, setFutureBMIPredictions] = useState<Array<{ period: number; weight: number; bmi: number }>>([]);
   const [currentBMI, setCurrentBMI] = useState(0);
   const [isSimulationRunning, setIsSimulationRunning] = useState(false);
   const [simulationCompleted, setSimulationCompleted] = useState(false);
@@ -56,7 +57,7 @@ function HomeContent() {
   };
 
   const handleFutureBMIChange = (predictions: Array<{ period: number; weight: number; bmi: number }>) => {
-    // 未来予測データを受け取る（現在は表示のみのため保存不要）
+    setFutureBMIPredictions(predictions);
   };
 
   const handleUserDataChange = (newUserData: {
@@ -174,6 +175,7 @@ function HomeContent() {
                   height={userData.height}
                   faceFeatures={currentFaceFeatures || undefined}
                   dailySurplusCalories={userData.excessCalories === '少ない' ? -100 : userData.excessCalories === '多い' ? 100 : 0}
+                  futureBMIPredictions={futureBMIPredictions}
                   onSimulationStateChange={handleSimulationStateChange}
                   onSimulationCompletedChange={handleSimulationCompletedChange}
                   startSimulation={startSimulation}
