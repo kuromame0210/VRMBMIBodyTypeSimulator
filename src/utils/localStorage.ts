@@ -4,6 +4,7 @@ import { FaceFeatures } from '../types/face';
 
 const AVATAR_SELECTION_KEY = 'vrm-bmi-simulator-selected-avatar';
 const FACE_FEATURES_KEY = 'vrm-bmi-simulator-face-features';
+const CHILD_AVATAR_SELECTION_KEY = 'vrm-bmi-simulator-child-avatar';
 
 // 保存される顔特徴データの型定義
 export interface SavedFaceFeatures {
@@ -112,10 +113,37 @@ export const getAvatarSelectionStatus = () => {
 export const getLocalStorageStatus = () => {
   const faceStatus = getFacialExpressionStatus();
   const avatarStatus = getAvatarSelectionStatus();
-  
+
   return {
     face: faceStatus,
     avatar: avatarStatus,
     hasAnyData: faceStatus.hasFaceData || avatarStatus.hasCustomSelection
   };
+};
+
+// === 小児肥満予測用アバター管理 ===
+
+export const saveChildAvatar = (avatarId: string): void => {
+  try {
+    localStorage.setItem(CHILD_AVATAR_SELECTION_KEY, avatarId);
+  } catch {
+    // ローカルストレージへの保存に失敗
+  }
+};
+
+export const getChildAvatar = (): string | null => {
+  try {
+    return localStorage.getItem(CHILD_AVATAR_SELECTION_KEY);
+  } catch {
+    // ローカルストレージからの読み込みに失敗
+    return null;
+  }
+};
+
+export const clearChildAvatar = (): void => {
+  try {
+    localStorage.removeItem(CHILD_AVATAR_SELECTION_KEY);
+  } catch {
+    // ローカルストレージからの削除に失敗
+  }
 };

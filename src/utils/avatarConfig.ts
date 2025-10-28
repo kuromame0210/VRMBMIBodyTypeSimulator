@@ -81,6 +81,142 @@ export const AVATAR_LIST: AvatarData[] = [
     blendShapeNames: {
       fatness: 'fatness'
     }
+  },
+  // 小児肥満予測用アバター - 女性（f0）
+  {
+    id: 'child_f_0_06',
+    name: 'アバターA（6歳）',
+    gender: 'female',
+    vrmPath: '/vrm-models/childAvator/f0/f_0_06.glb',
+    thumbnailPath: '/placeholder-avatar.png',
+    description: 'アバターA（6歳・小児肥満予測用）',
+    blendShapeNames: {
+      fatness: 'fatness'
+    }
+  },
+  {
+    id: 'child_f_0_11',
+    name: 'アバターA（11歳）',
+    gender: 'female',
+    vrmPath: '/vrm-models/childAvator/f0/f_0_11.glb',
+    thumbnailPath: '/placeholder-avatar.png',
+    description: 'アバターA（11歳・小児肥満予測用）',
+    blendShapeNames: {
+      fatness: 'fatness'
+    }
+  },
+  {
+    id: 'child_f_0_14',
+    name: 'アバターA（14歳）',
+    gender: 'female',
+    vrmPath: '/vrm-models/childAvator/f0/f_0_14.glb',
+    thumbnailPath: '/placeholder-avatar.png',
+    description: 'アバターA（14歳・小児肥満予測用）',
+    blendShapeNames: {
+      fatness: 'fatness'
+    }
+  },
+  // 小児肥満予測用アバター - 男性（m0）
+  {
+    id: 'child_m_0_06',
+    name: 'アバターA（6歳）',
+    gender: 'male',
+    vrmPath: '/vrm-models/childAvator/m0/m_0_06.glb',
+    thumbnailPath: '/placeholder-avatar.png',
+    description: 'アバターA（6歳・小児肥満予測用）',
+    blendShapeNames: {
+      fatness: 'fatness'
+    }
+  },
+  {
+    id: 'child_m_0_11',
+    name: 'アバターA（11歳）',
+    gender: 'male',
+    vrmPath: '/vrm-models/childAvator/m0/m_0_11.glb',
+    thumbnailPath: '/placeholder-avatar.png',
+    description: 'アバターA（11歳・小児肥満予測用）',
+    blendShapeNames: {
+      fatness: 'fatness'
+    }
+  },
+  {
+    id: 'child_m_0_14',
+    name: 'アバターA（14歳）',
+    gender: 'male',
+    vrmPath: '/vrm-models/childAvator/m0/m_0_14.glb',
+    thumbnailPath: '/placeholder-avatar.png',
+    description: 'アバターA（14歳・小児肥満予測用）',
+    blendShapeNames: {
+      fatness: 'fatness'
+    }
+  },
+  // 小児肥満予測用アバター - 男性（m1）
+  {
+    id: 'child_m_1_06',
+    name: 'アバターB（6歳）',
+    gender: 'male',
+    vrmPath: '/vrm-models/childAvator/m1/m_1_06.glb',
+    thumbnailPath: '/placeholder-avatar.png',
+    description: 'アバターB（6歳・小児肥満予測用）',
+    blendShapeNames: {
+      fatness: 'fatness'
+    }
+  },
+  {
+    id: 'child_m_1_11',
+    name: 'アバターB（11歳）',
+    gender: 'male',
+    vrmPath: '/vrm-models/childAvator/m1/m_1_11.glb',
+    thumbnailPath: '/placeholder-avatar.png',
+    description: 'アバターB（11歳・小児肥満予測用）',
+    blendShapeNames: {
+      fatness: 'fatness'
+    }
+  },
+  {
+    id: 'child_m_1_14',
+    name: 'アバターB（14歳）',
+    gender: 'male',
+    vrmPath: '/vrm-models/childAvator/m1/m_1_14.glb',
+    thumbnailPath: '/placeholder-avatar.png',
+    description: 'アバターB（14歳・小児肥満予測用）',
+    blendShapeNames: {
+      fatness: 'fatness'
+    }
+  },
+  // 小児肥満予測用アバター - 男性（m2）
+  {
+    id: 'child_m_2_06',
+    name: 'アバターC（6歳）',
+    gender: 'male',
+    vrmPath: '/vrm-models/childAvator/m2/m_2_06.glb',
+    thumbnailPath: '/placeholder-avatar.png',
+    description: 'アバターC（6歳・小児肥満予測用）',
+    blendShapeNames: {
+      fatness: 'fatness'
+    }
+  },
+  {
+    id: 'child_m_2_11',
+    name: 'アバターC（11歳）',
+    gender: 'male',
+    vrmPath: '/vrm-models/childAvator/m2/m_2_11.glb',
+    thumbnailPath: '/placeholder-avatar.png',
+    description: 'アバターC（11歳・小児肥満予測用）',
+    blendShapeNames: {
+      fatness: 'fatness'
+    }
+  },
+  {
+    id: 'child_m_2_14',
+    name: 'アバターC（14歳）',
+    gender: 'male',
+    vrmPath: '/vrm-models/childAvator/m2/m_2_14.glb',
+    thumbnailPath: '/placeholder-avatar.png',
+    description: 'アバターC（14歳・小児肥満予測用）',
+    blendShapeNames: {
+      fatness: 'fatness'
+    }
   }
 ];
 
@@ -110,4 +246,14 @@ export const getAvatarsWithFatnessByGender = (gender: 'male' | 'female'): Avatar
 // デフォルトアバター（最初のアバターを使用）
 export const getDefaultAvatar = (): AvatarData => {
   return AVATAR_LIST[0];
+};
+
+// 大人用アバターのみを取得（子供用アバターを除外）
+export const getAdultAvatars = (): AvatarData[] => {
+  return AVATAR_LIST.filter(avatar => !avatar.id.startsWith('child_'));
+};
+
+// 大人用アバターで性別フィルタ
+export const getAdultAvatarsByGender = (gender: 'male' | 'female'): AvatarData[] => {
+  return getAdultAvatars().filter(avatar => avatar.gender === gender);
 };

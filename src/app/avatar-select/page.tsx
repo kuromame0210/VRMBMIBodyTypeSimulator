@@ -3,12 +3,13 @@
 import { useState } from 'react';
 import { useAvatarState } from '@/hooks/useAvatarState';
 import { useRouter } from 'next/navigation';
-import { AvatarData, getAvatarsWithFatness, getAvatarsWithFatnessByGender } from '@/utils/avatarConfig';
+import { AvatarData, getAdultAvatars, getAdultAvatarsByGender } from '@/utils/avatarConfig';
 import ThumbnailManager from '@/components/ThumbnailManager';
 import PageWrapper from '@/components/PageWrapper';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import AvatarCard from '@/components/AvatarCard';
 import GenderFilter from '@/components/GenderFilter';
+import Link from 'next/link';
 
 function AvatarSelectContent() {
   const router = useRouter();
@@ -23,11 +24,11 @@ function AvatarSelectContent() {
   const [genderFilter, setGenderFilter] = useState<'all' | 'male' | 'female'>('all');
   const [showThumbnailManager, setShowThumbnailManager] = useState(false);
 
-  // fatnessブレンドシェイプ付きアバターのみ表示
-  const fatnessAvatars = getAvatarsWithFatness();
-  const filteredAvatars = genderFilter === 'all' 
-    ? fatnessAvatars 
-    : getAvatarsWithFatnessByGender(genderFilter);
+  // 大人用アバターのみ表示（子供用アバターを除外）
+  const adultAvatars = getAdultAvatars();
+  const filteredAvatars = genderFilter === 'all'
+    ? adultAvatars
+    : getAdultAvatarsByGender(genderFilter);
 
   // デバッグログ
   //   currentAvatarId,
@@ -39,7 +40,7 @@ function AvatarSelectContent() {
   // });
 
   // 初回のみアバターリストの内容を確認
-  if (fatnessAvatars.length > 0) {
+  if (adultAvatars.length > 0) {
   }
 
   const handleAvatarSelect = (avatar: AvatarData) => {
@@ -128,12 +129,22 @@ function AvatarSelectContent() {
                     <span>ID: {selectedAvatar.id}</span>
                   </div>
                 </div>
-                <div className="flex-shrink-0">
+                <div className="flex-shrink-0 flex flex-col gap-3">
                   <button
                     onClick={handleConfirm}
                     className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
                   >
                     このアバターで体系シミュレーションを開始
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (selectedAvatar) {
+                        router.push('/child-obesity-prediction');
+                      }
+                    }}
+                    className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                  >
+                    小児肥満を予測する
                   </button>
                 </div>
               </div>

@@ -36,14 +36,16 @@ interface SimpleVRMViewerProps {
   resetSimulation?: boolean;
   showRiskPopup?: boolean;
   riskPercentage?: number;
+  childMonths?: number; // 小児肥満予測用：月齢（6, 11, 14など）
+  isChildMode?: boolean; // 小児肥満予測モード
 }
 
-export default function SimpleVRMViewer({ 
-  avatarData, 
-  currentBMI, 
+export default function SimpleVRMViewer({
+  avatarData,
+  currentBMI,
   muscleMass,
-  dailySurplusCalories = 0, 
-  age = 25, 
+  dailySurplusCalories = 0,
+  age = 25,
   height = 170,
   faceFeatures,
   futureBMIPredictions = [],
@@ -53,7 +55,9 @@ export default function SimpleVRMViewer({
   stopSimulation = false,
   resetSimulation = false,
   showRiskPopup = false,
-  riskPercentage = 0
+  riskPercentage = 0,
+  childMonths,
+  isChildMode = false
 }: SimpleVRMViewerProps) {
   // 🚨 コンポーネント再初期化検出（重要なデバッグポイント）
   const [componentInitCount, setComponentInitCount] = useState(0);
@@ -1263,11 +1267,19 @@ export default function SimpleVRMViewer({
       
       {/* シンプルなステータス表示 */}
       <div className="absolute top-4 left-4 bg-black bg-opacity-50 text-white p-2 rounded text-xs max-w-xs">
-        <p>年齢: {getDisplayAge()}歳 {autoSimulation && `(${simulationMonth === 1 ? '1ヶ月後' : simulationMonth === 12 ? '1年後' : simulationMonth === 36 ? '3年後' : simulationMonth === 60 ? '5年後' : simulationMonth === 120 ? '10年後' : '現在'})`}</p>
-        <p>BMI: {getDisplayBMI().toFixed(1)} ({getBMICategory(getDisplayBMI())})</p>
-        <p>筋量: {muscleMass.toFixed(1)}kg</p>
-        {/* <p>脂肪量: {getCurrentBodyComposition().fatMass.toFixed(1)}kg</p> */}
-        <p>Fatness: {currentFatnessValue.toFixed(3)} (Lv.{Math.round(currentFatnessValue * 10)})</p>
+        {isChildMode ? (
+          // 小児肥満予測モード：年齢のみ表示
+          <p>年齢: {childMonths ? Math.floor(childMonths / 12) : 0}歳</p>
+        ) : (
+          // 通常モード：すべての情報を表示
+          <>
+            <p>年齢: {getDisplayAge()}歳 {autoSimulation && `(${simulationMonth === 1 ? '1ヶ月後' : simulationMonth === 12 ? '1年後' : simulationMonth === 36 ? '3年後' : simulationMonth === 60 ? '5年後' : simulationMonth === 120 ? '10年後' : '現在'})`}</p>
+            <p>BMI: {getDisplayBMI().toFixed(1)} ({getBMICategory(getDisplayBMI())})</p>
+            <p>筋量: {muscleMass.toFixed(1)}kg</p>
+            {/* <p>脂肪量: {getCurrentBodyComposition().fatMass.toFixed(1)}kg</p> */}
+            <p>Fatness: {currentFatnessValue.toFixed(3)} (Lv.{Math.round(currentFatnessValue * 10)})</p>
+          </>
+        )}
         {autoSimulation && (
           <p style={{fontSize: '10px', color: '#ffff99'}}>
             Debug: {currentBMI.toFixed(1)} → {getSimulatedBMI(simulationMonth).toFixed(1)} → Lv.{calculateBMIBasedFatness(getSimulatedBMI(simulationMonth))}
