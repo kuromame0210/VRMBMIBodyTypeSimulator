@@ -116,6 +116,74 @@ export const AVATAR_LIST: AvatarData[] = [
       fatness: 'fatness'
     }
   },
+  // 小児肥満予測用アバター - 女性（f1）
+  {
+    id: 'child_f_1_06',
+    name: 'アバターB（6歳）',
+    gender: 'female',
+    vrmPath: '/vrm-models/childAvator/f1/f_1_06.glb',
+    thumbnailPath: '/placeholder-avatar.png',
+    description: 'アバターB（6歳・小児肥満予測用）',
+    blendShapeNames: {
+      fatness: 'fatness'
+    }
+  },
+  {
+    id: 'child_f_1_11',
+    name: 'アバターB（11歳）',
+    gender: 'female',
+    vrmPath: '/vrm-models/childAvator/f1/f_1_11.glb',
+    thumbnailPath: '/placeholder-avatar.png',
+    description: 'アバターB（11歳・小児肥満予測用）',
+    blendShapeNames: {
+      fatness: 'fatness'
+    }
+  },
+  {
+    id: 'child_f_1_14',
+    name: 'アバターB（14歳）',
+    gender: 'female',
+    vrmPath: '/vrm-models/childAvator/f1/f_1_14.glb',
+    thumbnailPath: '/placeholder-avatar.png',
+    description: 'アバターB（14歳・小児肥満予測用）',
+    blendShapeNames: {
+      fatness: 'fatness'
+    }
+  },
+  // 小児肥満予測用アバター - 女性（f2）
+  {
+    id: 'child_f_2_06',
+    name: 'アバターC（6歳）',
+    gender: 'female',
+    vrmPath: '/vrm-models/childAvator/f2/f_2_06.glb',
+    thumbnailPath: '/placeholder-avatar.png',
+    description: 'アバターC（6歳・小児肥満予測用）',
+    blendShapeNames: {
+      fatness: 'fatness'
+    }
+  },
+  {
+    id: 'child_f_2_11',
+    name: 'アバターC（11歳）',
+    gender: 'female',
+    vrmPath: '/vrm-models/childAvator/f2/f_2_11.glb',
+    thumbnailPath: '/placeholder-avatar.png',
+    description: 'アバターC（11歳・小児肥満予測用）',
+    blendShapeNames: {
+      fatness: 'fatness'
+    }
+  },
+  {
+    id: 'child_f_2_14',
+    name: 'アバターC（14歳）',
+    gender: 'female',
+    vrmPath: '/vrm-models/childAvator/f2/f_2_14.glb',
+    thumbnailPath: '/placeholder-avatar.png',
+    description: 'アバターC（14歳・小児肥満予測用）',
+    blendShapeNames: {
+      fatness: 'fatness'
+    }
+  },
   // 小児肥満予測用アバター - 男性（m0）
   {
     id: 'child_m_0_06',
