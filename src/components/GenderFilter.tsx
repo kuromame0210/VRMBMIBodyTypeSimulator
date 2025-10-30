@@ -1,5 +1,5 @@
 import React from 'react';
-import { getAvatarsWithFatness, getAvatarsWithFatnessByGender } from '@/utils/avatarConfig';
+import { getAdultAvatars, getAdultAvatarsByGender } from '@/utils/avatarConfig';
 
 interface GenderFilterProps {
   currentFilter: 'all' | 'male' | 'female';
@@ -7,12 +7,10 @@ interface GenderFilterProps {
 }
 
 export default function GenderFilter({ currentFilter, onFilterChange }: GenderFilterProps) {
-  const fatnessAvatars = getAvatarsWithFatness();
-  
   const filterOptions = [
-    { key: 'all' as const, label: 'すべて', count: fatnessAvatars.length },
-    { key: 'male' as const, label: '男性', count: getAvatarsWithFatnessByGender('male').length },
-    { key: 'female' as const, label: '女性', count: getAvatarsWithFatnessByGender('female').length }
+    { key: 'all' as const, label: 'すべて', count: getAdultAvatars().length },
+    { key: 'male' as const, label: '男性', count: getAdultAvatarsByGender('male').length },
+    { key: 'female' as const, label: '女性', count: getAdultAvatarsByGender('female').length }
   ];
 
   return (
