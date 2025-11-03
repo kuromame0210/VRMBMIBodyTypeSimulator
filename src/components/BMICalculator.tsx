@@ -206,7 +206,7 @@ export default function BMICalculator({
             type="number"
             value={showCalculatedValues ? currentBMI.toFixed(1) : ''}
             readOnly
-            className="w-full p-2 bg-gray-100 border border-gray-300 rounded-md text-black placeholder-black"
+            className="w-full p-2 border border-gray-300 rounded-md text-black placeholder-black"
             placeholder="計算されていません"
           />
         </div>
@@ -362,14 +362,14 @@ export default function BMICalculator({
               
               <div className="flex items-center gap-2">
                 <span className="text-black text-base">BMI</span>
-                <span className="bg-gray-100 px-3 py-2 text-base font-medium">
+                <span className="px-3 py-2 text-base font-medium">
                   {prediction.bmi.toFixed(1)}
                 </span>
               </div>
               
               <div className="flex items-center gap-2">
                 <span className="text-black text-base">余剰kcal</span>
-                <span className="bg-gray-100 px-3 py-2 text-base font-medium">
+                <span className="px-3 py-2 text-base font-medium">
                   {(userData.excessCaloriesValue * prediction.period) > 0 ? '+' : ''}{(userData.excessCaloriesValue * prediction.period).toLocaleString()}
                 </span>
               </div>

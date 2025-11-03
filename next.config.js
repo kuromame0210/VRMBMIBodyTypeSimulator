@@ -13,14 +13,12 @@ const nextConfig = {
     ignoreBuildErrors: true,
   },
   
-  // 他の設定
-  experimental: {
-    turbo: {
-      rules: {
-        '*.svg': {
-          loaders: ['@svgr/webpack'],
-          as: '*.js',
-        },
+  // Turbopack設定（stableに移行）
+  turbopack: {
+    rules: {
+      '*.svg': {
+        loaders: ['@svgr/webpack'],
+        as: '*.js',
       },
     },
   },

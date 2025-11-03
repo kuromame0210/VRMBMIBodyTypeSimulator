@@ -220,7 +220,7 @@ export default function ChildObesityForm({
             type="number"
             value={formData.motherBMI > 0 ? formData.motherBMI.toFixed(1) : ''}
             readOnly
-            className="w-full p-1.5 text-sm bg-gray-100 border border-gray-300 rounded-md text-black placeholder-black"
+            className="w-full p-1.5 text-sm border border-gray-300 rounded-md text-black placeholder-black"
             placeholder="自動計算されます"
           />
         </div>
