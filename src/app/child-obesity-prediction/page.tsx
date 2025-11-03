@@ -10,6 +10,12 @@ import AvatarCard from '@/components/AvatarCard';
 import ChildObesityForm from '@/components/ChildObesityForm';
 import Link from 'next/link';
 import { getSelectedAvatar } from '@/utils/localStorage';
+import {
+  predictChildObesity,
+  formatProbabilityAsPercent,
+  calculateTargetBMIFromProbability,
+  type ObesityPredictionInput
+} from '@/utils/obesity-prediction';
 
 // SimpleVRMViewerを動的インポート（ホーム画面と同じ）
 const SimpleVRMViewer = dynamic(() => import('@/components/SimpleVRMViewer'), {
@@ -37,8 +43,10 @@ function ChildObesityPredictionContent() {
   } | null>(null);
 
   const [childData, setChildData] = useState({
-    childHeight: 100,
-    childWeight: 15,
+    childAgeYears: 1,
+    childAgeMonths: 6,
+    childHeight: 82,      // 1歳6ヶ月の標準身長
+    childWeight: 11,      // 1歳6ヶ月の標準体重
     childBMI: 0,
     motherAge: 30,
     birthExperience: '初産',
@@ -49,6 +57,13 @@ function ChildObesityPredictionContent() {
     smokingHistory: 'なし',
     birthWeight: 3.0,
     bmiChange18Months: 0
+  });
+
+  // 予測確率の状態管理
+  const [predictions, setPredictions] = useState({
+    age6Probability: 0,
+    age11Probability: 0,
+    age14Probability: 0
   });
 
   // localStorageから選択されたアバターを取得し、性別とタイプを抽出
@@ -99,7 +114,61 @@ function ChildObesityPredictionContent() {
   };
 
   const handleSimulationButtonClick = () => {
+    if (!isSimulationRunning) {
+      // シミュレーション開始時に予測計算を実行
+      calculatePredictions();
+    }
     setIsSimulationRunning(!isSimulationRunning);
+  };
+
+  // 予測確率を計算
+  const calculatePredictions = () => {
+    if (!selectedAvatarInfo) {
+      console.error('selectedAvatarInfo が未設定です');
+      return;
+    }
+
+    // アバターIDから性別を判定 (f = 女性, m = 男性)
+    const childGender = selectedAvatarInfo.gender === 'female' ? 'girl' : 'boy';
+
+    // 現在の月齢を計算
+    const currentMonths = childData.childAgeYears * 12 + childData.childAgeMonths;
+
+    console.log('予測計算開始:', {
+      childGender,
+      currentMonths,
+      childHeight: childData.childHeight,
+      childWeight: childData.childWeight,
+      motherAge: childData.motherAge,
+    });
+
+    // 現在の月齢を使用して予測を計算（1回の呼び出しで3つの予測を取得）
+    const result = predictChildObesity({
+      childHeight: childData.childHeight,
+      childWeight: childData.childWeight,
+      childGender,
+      childMonths: currentMonths, // 現在の月齢を使用
+      motherAge: childData.motherAge,
+      motherHeight: childData.motherHeight,
+      motherWeight: childData.motherWeight,
+      birthExperience: childData.birthExperience as '初産' | '経産',
+      drinkingHistory: childData.drinkingHistory as 'なし' | 'あり',
+      smokingHistory: childData.smokingHistory as 'なし' | 'あり',
+    });
+
+    console.log('予測結果:', {
+      age6: result.age6Probability,
+      age11: result.age11Probability,
+      age14: result.age14Probability,
+      childBMI: result.childBMI,
+      childBMIz: result.childBMIz,
+    });
+
+    setPredictions({
+      age6Probability: result.age6Probability,
+      age11Probability: result.age11Probability,
+      age14Probability: result.age14Probability,
+    });
   };
 
   // SSR時の処理
@@ -157,27 +226,58 @@ function ChildObesityPredictionContent() {
                       const avatar = getAvatarById(avatarId);
                       if (!avatar) return null;
 
+                      // 各アバターに対応する確率を取得
+                      const probabilities = [
+                        predictions.age6Probability,
+                        predictions.age11Probability,
+                        predictions.age14Probability
+                      ];
+                      const currentProbability = probabilities[index];
+
+                      // 確率をfatnessシェイプキー値に変換 (0〜1の範囲)
+                      // 0% → 0.0 (痩せ), 100% → 1.0 (太い)
+                      const fatnessValue = currentProbability;
+
+                      // デバッグログ
+                      console.log(`アバター${index} (${childAgesMap[index]}歳):`, {
+                        probability: currentProbability,
+                        probabilityPercent: (currentProbability * 100).toFixed(1) + '%',
+                        fatnessValue,
+                        avatarId
+                      });
+
                       return (
                         <div key={avatarId} className="flex flex-col h-full">
                           <div className="text-center mb-2">
                             <p className="text-sm font-bold text-black">{childAgesMap[index]}歳</p>
+                            <p className="text-lg font-bold text-red-600">
+                              {formatProbabilityAsPercent(currentProbability)}
+                            </p>
                           </div>
                           <div className="flex-1 border border-gray-200 rounded overflow-hidden" style={{ minHeight: 0 }}>
                             <ErrorBoundary>
                               <SimpleVRMViewer
-                                currentBMI={childData.childBMI}
+                                currentBMI={18}
                                 muscleMass={20}
                                 avatarData={avatar}
                                 age={childAgesMap[index]}
                                 height={childData.childHeight}
                                 childMonths={childAgesMap[index] * 12}
                                 isChildMode={true}
+                                fatnessOverride={fatnessValue}
                               />
                             </ErrorBoundary>
                           </div>
                         </div>
                       );
                     })}
+                  </div>
+                </div>
+
+                {/* 説明文章ボックス */}
+                <div className="bg-white rounded-lg shadow-lg p-4">
+                  <div className="text-sm text-black">
+                    説明文章
                   </div>
                 </div>
               </>

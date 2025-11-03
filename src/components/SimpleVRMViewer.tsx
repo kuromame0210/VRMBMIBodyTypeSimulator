@@ -38,6 +38,7 @@ interface SimpleVRMViewerProps {
   riskPercentage?: number;
   childMonths?: number; // 小児肥満予測用：月齢（6, 11, 14など）
   isChildMode?: boolean; // 小児肥満予測モード
+  fatnessOverride?: number; // 肥満予測システム用: 確率から直接fatness値を指定 (0〜1)
 }
 
 export default function SimpleVRMViewer({
@@ -57,7 +58,8 @@ export default function SimpleVRMViewer({
   showRiskPopup = false,
   riskPercentage = 0,
   childMonths,
-  isChildMode = false
+  isChildMode = false,
+  fatnessOverride
 }: SimpleVRMViewerProps) {
   // 🚨 コンポーネント再初期化検出（重要なデバッグポイント）
   const [componentInitCount, setComponentInitCount] = useState(0);
@@ -454,13 +456,14 @@ export default function SimpleVRMViewer({
           scene.add(gltf.scene);
           
           // 現在の値を保持（自動リセットしない）
-          const targetFatness = currentFatnessValue;
-          updateFatnessBlendShape(targetFatness, `VRM読み込み完了: 現在値保持 (Lv.${Math.round(targetFatness * 10)})`);
-          
+          // ただし、fatnessOverrideが指定されている場合はそちらを優先
+          const targetFatness = fatnessOverride !== undefined ? fatnessOverride : currentFatnessValue;
+          updateFatnessBlendShape(targetFatness, `VRM読み込み完了: ${fatnessOverride !== undefined ? '肥満予測値' : '現在値保持'} (${(targetFatness * 100).toFixed(1)}%)`);
+
           // BlendShapeターゲット収集
           const targets = collectBlendShapeTargets(gltf.scene);
           setBlendShapeTargets(targets);
-          
+
           // VRMPreview方式: 顔特徴BlendShapeを即座適用（最適化済み）
           if (activeFaceFeatures) {
             // ターゲット収集後に遅延適用
@@ -482,15 +485,16 @@ export default function SimpleVRMViewer({
       scene.add(vrm.scene);
       
       VRMUtils.rotateVRM0(vrm);
-      
+
       // 現在の値を保持（自動リセットしない）
-      const targetFatness = currentFatnessValue;
-      updateFatnessBlendShape(targetFatness, `VRM読み込み完了: 現在値保持 (Lv.${Math.round(targetFatness * 10)})`);
-      
+      // ただし、fatnessOverrideが指定されている場合はそちらを優先
+      const targetFatness = fatnessOverride !== undefined ? fatnessOverride : currentFatnessValue;
+      updateFatnessBlendShape(targetFatness, `VRM読み込み完了: ${fatnessOverride !== undefined ? '肥満予測値' : '現在値保持'} (${(targetFatness * 100).toFixed(1)}%)`);
+
       // BlendShapeターゲット収集
       const targets = collectBlendShapeTargets(vrm.scene);
       setBlendShapeTargets(targets);
-      
+
       // VRMPreview方式: 顔特徴BlendShapeを即座適用（最適化済み）
       if (activeFaceFeatures) {
         // ターゲット収集後に遅延適用
@@ -615,10 +619,20 @@ export default function SimpleVRMViewer({
     // BMI + 顔特徴の統合BlendShape適用関数
     function applyAllBlendShapes(vrm: any, bmi: number, faceData?: SavedFaceFeatures) {
       if (!vrm) return;
-      
+
       // 1. BMI → fatness適用 (既存)
-      updateFatnessForBMI(vrm, bmi);
-      
+      // ただし、fatnessOverrideが指定されている場合はそちらを優先
+      if (fatnessOverride !== undefined) {
+        console.log('🎯 [小児肥満予測] fatnessOverride適用:', {
+          fatnessValue: fatnessOverride,
+          percentage: (fatnessOverride * 100).toFixed(1) + '%',
+          avatarId: avatarData.id
+        });
+        updateFatnessBlendShape(fatnessOverride, '肥満予測システム (確率ベース)');
+      } else {
+        updateFatnessForBMI(vrm, bmi);
+      }
+
       // 2. 顔特徴 → 顔パーツBlendShape適用
       if (faceData) {
         applyFaceBlendShapes(vrm, faceData);

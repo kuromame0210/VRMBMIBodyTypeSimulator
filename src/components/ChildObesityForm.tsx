@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 
 interface ChildObesityFormProps {
   onDataChange: (data: {
+    childAgeYears: number;
+    childAgeMonths: number;
     childHeight: number;
     childWeight: number;
     childBMI: number;
@@ -29,8 +31,10 @@ export default function ChildObesityForm({
   simulationCompleted = false
 }: ChildObesityFormProps) {
   const [formData, setFormData] = useState({
-    childHeight: 100,
-    childWeight: 15,
+    childAgeYears: 1,
+    childAgeMonths: 6,
+    childHeight: 82,      // 1歳6ヶ月の標準身長
+    childWeight: 11,      // 1歳6ヶ月の標準体重
     childBMI: 0,
     motherAge: 30,
     birthExperience: '初産',
@@ -87,6 +91,35 @@ export default function ChildObesityForm({
   return (
     <div className="w-full p-3 bg-white rounded-lg shadow-lg">
       <h2 className="text-lg font-bold mb-3 text-black">小児肥満予測入力</h2>
+
+      {/* 児の現在の年齢 */}
+      <div className="mb-2">
+        <label className="block text-xs font-medium text-black mb-1">児の現在の年齢</label>
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="block text-xs text-black mb-0.5">年齢(歳)</label>
+            <input
+              type="number"
+              value={formData.childAgeYears}
+              onChange={(e) => handleInputChange('childAgeYears', Number(e.target.value))}
+              className="w-full p-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
+              min="0"
+              max="20"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-black mb-0.5">月数(0-11)</label>
+            <input
+              type="number"
+              value={formData.childAgeMonths}
+              onChange={(e) => handleInputChange('childAgeMonths', Number(e.target.value))}
+              className="w-full p-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
+              min="0"
+              max="11"
+            />
+          </div>
+        </div>
+      </div>
 
       {/* 児のBMI（身長・体重入力） */}
       <div className="mb-2">
