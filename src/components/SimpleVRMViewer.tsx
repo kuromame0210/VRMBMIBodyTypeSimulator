@@ -992,12 +992,12 @@ export default function SimpleVRMViewer({
 
   // 表示用の年齢を取得
   const getDisplayAge = () => {
-    return autoSimulation ? age + Math.floor(simulationMonth / 12) : age;
+    return (autoSimulation || simulationCompleted) ? age + Math.floor(simulationMonth / 12) : age;
   };
 
   // 表示用のBMIを取得
   const getDisplayBMI = () => {
-    return autoSimulation ? getSimulatedBMI(simulationMonth) : currentBMI;
+    return (autoSimulation || simulationCompleted) ? getSimulatedBMI(simulationMonth) : currentBMI;
   };
 
   // BMIベースのfatnessレベルを計算（BMI 20.8をLevel 5に設定）

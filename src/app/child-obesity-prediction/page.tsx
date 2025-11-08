@@ -121,6 +121,33 @@ function ChildObesityPredictionContent() {
     setIsSimulationRunning(!isSimulationRunning);
   };
 
+  // 14歳時点の予測確率に応じた説明文を生成
+  const getAge14Message = (p: number) => {
+    const percent = Math.round(p * 100);
+    if (p < 0.4) {
+      return {
+        tone: 'low' as const,
+        title: '14歳時点の予測: 低め（' + percent + '%）',
+        body:
+          'こちらのデータは根拠あるデータを元に予測された数値です。14歳までは小児肥満になる可能性は低いのですが、食事、生活習慣によって変わる可能性はあります。'
+      };
+    } else if (p < 0.7) {
+      return {
+        tone: 'mid' as const,
+        title: '14歳時点の予測: 中程度（' + percent + '%）',
+        body:
+          'こちらのデータは根拠あるデータを元に予測された数値です。14歳までは小児肥満になる可能性がややあります。食事、生活習慣によって変わる可能性もあります。'
+      };
+    } else {
+      return {
+        tone: 'high' as const,
+        title: '14歳時点の予測: 高め（' + percent + '%）',
+        body:
+          'こちらのデータは根拠あるデータを元に予測された数値です。14歳までは小児肥満になる可能性があります。食事、生活習慣に配慮することを勧めます。'
+      };
+    }
+  };
+
   // 予測確率を計算
   const calculatePredictions = () => {
     if (!selectedAvatarInfo) {
@@ -276,9 +303,21 @@ function ChildObesityPredictionContent() {
 
                 {/* 説明文章ボックス */}
                 <div className="bg-white rounded-lg shadow-lg p-4">
-                  <div className="text-sm text-black">
-                    説明文章
-                  </div>
+                  {(() => {
+                    const msg14 = getAge14Message(predictions.age14Probability);
+                    const boxClass =
+                      msg14.tone === 'low'
+                        ? 'border-green-500 bg-green-50'
+                        : msg14.tone === 'mid'
+                        ? 'border-yellow-500 bg-yellow-50'
+                        : 'border-red-500 bg-red-50';
+                    return (
+                      <div className={'p-3 rounded-md border-l-4 ' + boxClass}>
+                        <p className="font-semibold text-black mb-1">{msg14.title}</p>
+                        <p className="text-black text-sm">{msg14.body}</p>
+                      </div>
+                    );
+                  })()}
                 </div>
               </>
             )}
