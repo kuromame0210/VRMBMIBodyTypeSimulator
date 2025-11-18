@@ -115,7 +115,22 @@ VRMBMIBodyTypeSimulator/
 
 ---
 
-## 5. トラブルシューティング
+## 5. 肥満確率計算ロジックの場所
+
+確率計算の実装箇所は以下のファイルにまとまっています。必要な式やパラメータを確認する際に参照してください。
+
+- `src/utils/obesity-prediction.ts`  
+  - 小児肥満予測のコア計算。BMI/BMIzの算出、7つのリスク因子、ロジスティック回帰による6歳・11歳・14歳の肥満確率を返します。
+- `src/app/child-obesity-prediction/page.tsx`  
+  - フォーム入力から `predictChildObesity` を呼び出し、取得した確率をUIとアバターに反映するページ。
+- `src/components/ChildObesityForm.tsx`  
+  - 入力フォーム。児と母親の身長/体重からBMIを自動計算し、予測関数へ渡すデータを整形します。
+- `test-prediction.ts`  
+  - TypeScript版の動作確認用スクリプト。ロジック単体で確率を計算できるため、式の検証に利用できます。
+
+> 補足: 元となるPHP実装は `docs/予測式のプログラム_20251010 2/` に保管されています。TypeScript版と見比べることで係数テーブルやロジスティック回帰式の確認が可能です。
+
+## 6. トラブルシューティング
 
 ### よくあるエラー
 
